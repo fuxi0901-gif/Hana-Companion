@@ -1,0 +1,515 @@
+# Hana-Companion
+
+> A free, open-source, beginner-friendly **desktop AI companion** with a Live2D avatar — long-term memory, proactive chat, natural voice, and a sleep mode. Bring your own LLM; everything else works out of the box.
+
+**Language:** **English** | [繁體中文](#繁體中文) | [日本語](./README.JP.md) | [한국어](./README.KR.md) | [简体中文](./README.CN.md)
+
+![License](https://img.shields.io/badge/license-MIT%20core%20%2B%20bundled%20terms-blue)
+![Built on Open-LLM-VTuber](https://img.shields.io/badge/built%20on-Open--LLM--VTuber-orange)
+![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
+
+---
+
+## What is this?
+
+**Hana-Companion** turns an on-screen Live2D character into an AI companion you actually talk to — it remembers you, starts conversations on its own, listens while you speak, and goes quiet when you say goodnight.
+
+It is a **friendly re-packaging** of the excellent [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) project. We stand on its shoulders: upstream provides the rock-solid Live2D + ASR/TTS + LLM plumbing; this fork wraps it into a **download → double-click → chat** experience for non-technical users, and adds a memory system, proactive conversation, natural barge-in voice, character management, an in-app setup wizard, and an all-new sakura-glass web UI in 7 languages.
+
+**Our principles — and what we deliberately do NOT do:**
+
+- **Free and open source, with optional donations.** No paid tier, no paywall.
+- **No mobile version.** Desktop only (macOS / Windows).
+- **No model marketplace / bundled copyrighted characters.** This avoids the Live2D commercial-licensing trap — we ship only neutral free defaults; you bring your own character, voice, and LLM.
+
+> Built on Open-LLM-VTuber. See [`NOTICE`](./NOTICE) for full attribution and component licenses, and [`README.upstream.md`](./README.upstream.md) for the original project's docs.
+
+---
+
+## Features
+
+- **Long-term memory** — it remembers who you are and what you're working on, and gets to know you over time. A curated per-character "core memory" is injected into the persona; after each turn the LLM decides what's worth saving. Updates take effect immediately (no restart). Tunable memory cap.
+- **Deep recall (FTS5 trigram)** — opt-in full-history search across everything you've ever said, with proper CJK support.
+- **Proactive topics** — after a stretch of silence it opens a topic on its own. Optionally pull the latest AI / tech / anime / gaming news to chat about (pure stdlib helper, **no API key needed**).
+- **Natural barge-in voice chat** — talk any time; you don't have to wait for the mic, and you can cut it off mid-sentence like a real conversation.
+- **Sleep / do-not-disturb mode** — say "晚安" (goodnight) and it stops initiating; it resumes the next time you talk to it. The keyword is configurable.
+- **Character management** — create / edit / switch / delete characters: name + persona + Live2D skin + voice + its own separate memory.
+- **First-run setup wizard** — paste an API key (OpenAI / Claude / Gemini / Zhipu / DeepSeek / Groq / Cerebras, or any custom OpenAI-compatible endpoint) or pick a local Ollama model. The wizard can even download the recommended Ollama model for you (live progress bar, no terminal), and it runs a quick test call before saving.
+- **Add or switch models anytime, no restart** — the settings drawer has an "AI Brain (LLM)" section; saving a new key/model hot-applies to the running server immediately (conf.yaml comments are preserved, the key is masked on read-back and never leaves your machine).
+- **Performance presets** — Light / Standard / High-performance, bundling ASR/TTS engine choice + memory-consolidation frequency + model keep-alive.
+- **Cross-language translation** — optional subtitle / voice translation (off by default).
+- **Works out of the box** — bundled sample Live2D model + free cloud TTS (edge-tts) + an auto-downloaded speech-to-text model (~1GB; a one-time, several-minute download on the very first launch). You only have to plug in an LLM.
+- **All-new sakura-glass web UI** — a hand-crafted night-sakura glassmorphism interface: frosted-glass panels and buttons floating over the scene, a collapsible top bar, drag the character anywhere, hold her and spin the wheel to zoom, tap her for a floating name tag.
+- **Animated wallpapers** — set an image *or a video* (MP4 / WebM / MOV, up to 2 GB — 4K supported) as the scene background, with fit modes (cover / contain / stretch / original) and a 25–400% zoom slider.
+- **UI in 7 languages** — 简体中文 / 繁體中文 / English / 日本語 / 한국어 / Русский / Español.
+
+---
+
+## Screenshots
+
+![Hana-Companion — your Live2D AI companion in action](assets/hana-companion-hero.png)
+
+*Hana-Companion running on the desktop: a Live2D avatar you actually talk to.*
+
+---
+
+## Quick start (download → double-click → chat)
+
+The easy path — **no terminal needed.**
+
+> **Before you start: you'll need an AI "brain" (LLM).**
+> Hana-Companion is the **body and face** — the avatar, the voice, the memory. The **brain** that actually thinks and talks is a separate AI that *you* provide. You set it up in the first-run wizard. Options, easiest first:
+> - **(Recommended — free, private, runs on your own machine) A local model via Ollama.** Install the free **[Ollama](https://ollama.com)** app, then run `ollama pull qwen2.5:3b` in a terminal (a small ~1.9 GB model). Hana-Companion's default already points to it, so it just works — **no account, no API key, no cost, works offline, and your chats never leave your computer.** Fine on a normal 8–16 GB laptop. (Want sharper replies and have the RAM? Pull a bigger model like `qwen2.5:7b` and pick it in Settings.)
+> - **(Optional — better quality if your PC is weak) Ollama Cloud free tier.** Ollama can run a bigger model on *its* servers for free (with limits). Needs a free account — see **Option B** below; you must `ollama pull` the cloud model first.
+> - **(Optional — best free quality) A free hosted API key.** Google AI Studio (Gemini), Cerebras, or Groq give a free key (no credit card). Best quality of the free options, but needs an account + key and your chats go to that provider. See **Option C**.
+> - **(If you already pay for one) A cloud API key** from OpenAI / Claude / Gemini — top quality, a few pennies per chat. See **Option D**.
+
+1. **Download Hana-Companion.** Go to the [**Releases page**](https://github.com/fuxi0901-gif/Hana-Companion/releases/latest) and download the latest `Hana-Companion-*.zip`, then unzip it (e.g. to your Desktop). _(Alternatively, on the main repo page click the green **`<> Code`** button → **Download ZIP**.)_
+2. **Double-click the launcher** inside the unzipped folder:
+   - **macOS:** `start-companion.command`
+   - **Windows:** `start-companion.bat`
+   - The first launch installs everything (`uv`, then dependencies) and can take a few minutes. **Leave that window open — it's the server.**
+3. Your browser opens to **http://localhost:12393**. On first run a **setup wizard** appears: either **paste an API key** (OpenAI / Claude / Gemini / Zhipu / DeepSeek / Groq / Cerebras, or any custom OpenAI-compatible endpoint) **or** **pick a local Ollama model** — the wizard can even download the recommended one for you. It runs a quick test call before saving.
+
+   ![Hana-Companion first-run setup wizard](assets/hana-companion-setup.png)
+
+   *The first-run setup wizard, where you plug in your AI "brain".*
+
+4. **Start chatting — no restart needed.** Your choice is hot-applied to the running server the moment you save it. Click once on the page to enable audio. (To quit later, close that launcher/terminal window from step 2 — that stops the server.)
+
+> **macOS Gatekeeper (first launch only):** double-clicking may show *"can't be opened because it is from an unidentified developer."* This is normal for an unsigned open-source app. **Right-click** `start-companion.command` → **Open** → **Open** in the dialog. After you allow it once, double-clicking works from then on. (We don't ship a signed/notarized build — this is the free tier.)
+
+> **Windows SmartScreen (first launch only):** double-clicking may show a blue **"Windows protected your PC"** box. This is normal for an unsigned open-source app. Click **More info** → **Run anyway**. After you allow it once, it won't ask again.
+
+Out of the box it uses the bundled **mao** sample Live2D model and **edge-tts** (free cloud voice, no GPU needed). The first run also downloads a speech-to-text model automatically — it's roughly **~1GB**, so the **very first launch does a one-time download + extract that can take several minutes**. The launcher window may look frozen during this — it isn't, so **leave it open and let it finish**; this only happens once.
+
+### Prefer the terminal? (advanced)
+
+Most people should use the **Download ZIP** path above. If you're comfortable with a terminal, you can clone the repo instead. Requires **Python ≥ 3.10, < 3.13** and [`uv`](https://github.com/astral-sh/uv).
+
+```bash
+git clone https://github.com/fuxi0901-gif/Hana-Companion.git && cd Hana-Companion
+uv sync                  # installs dependencies
+uv run run_server.py     # start the server
+# open http://localhost:12393  → setup wizard → chat
+```
+
+The wizard writes your LLM choice into `conf.yaml` for you. You can still edit it by hand (see below).
+
+---
+
+## Starting, stopping, and auto-start
+
+**To start it (open the "host"):**
+
+- **Windows:** double-click **`start-companion.bat`**
+- **macOS:** double-click **`start-companion.command`** — the very first time macOS may block it, so right-click the file → **Open** → **Open**; after that a normal double-click works.
+
+A black command window opens — **that window *is* the server; keep it open while you chat.** Once it's ready it opens the app in your browser by itself (`http://localhost:12393`). Think of it as two parts: the **command window is the engine**, the **browser tab is just the screen**.
+
+> First launch only: it downloads a ~1GB speech model and can take a few minutes — the window may look frozen but isn't. Leave it open and let it finish.
+
+**To stop it:**
+
+- **Close the black command window** (or press **Ctrl + C** inside it). That fully shuts the companion down.
+- Closing the **browser tab** only hides the screen — the server keeps running. Close the command window to actually stop it.
+- If you installed **Ollama** for a local brain, it keeps running quietly in the background. You can leave it (it's light when idle) or quit it from the system-tray (Windows) / menu-bar (macOS) icon.
+
+**To open it again later:** just run the same launcher again — it's also your daily launcher.
+
+**Start it automatically when your computer turns on (optional):**
+
+- **Windows**
+  1. Right-click **`start-companion.bat`** → **Create shortcut**.
+  2. Press **Win + R**, type **`shell:startup`**, press **Enter** — this opens your Startup folder.
+  3. Drag the shortcut into that folder. Hana-Companion now starts at every login. *(To undo: delete the shortcut from that folder.)*
+
+- **macOS**
+  1. Open **System Settings → General → Login Items & Extensions**.
+  2. Under **Open at Login**, click **+** and choose **`start-companion.command`** (or drag the file into the list).
+  *(To undo: select it and click **−**.)*
+
+Either way the command window (and then the browser) pops up on its own at login. Heads-up: a terminal window appearing every boot is normal — that's the engine starting. If you use a local Ollama brain, the Ollama app already auto-starts after you install it, so the whole companion comes up by itself.
+
+---
+
+## LLM setup (required)
+
+You need **either** an API key for a cloud LLM **or** a running local LLM. A cheap model is plenty for companion chat — you do not need a flagship.
+
+#### Option A — Local Ollama (recommended: free, private, no account)
+Install [Ollama](https://ollama.com/download), then run `ollama pull qwen2.5:3b` in a terminal (~1.9 GB). Hana-Companion's default already uses `qwen2.5:3b`, so once the download finishes, save the Ollama choice once in the wizard and it works right away — no restart, no API key, no account, no cloud cost, fully offline, and your chats stay on your computer. Runs comfortably on a typical 8–16 GB laptop. For sharper replies, pull a bigger model (e.g. `qwen2.5:7b`) and pick it in the settings drawer (AI Brain (LLM) → Add model).
+
+#### Option B — Cloud models through Ollama (free account; good if your PC is weak)
+Ollama can run a *bigger* model on its own servers, so a slow computer still gets good replies. Free tier, but it needs an account and you must pull the model first:
+1. Install Ollama from [ollama.com/download](https://ollama.com/download) (v0.12+).
+2. Create a free account at [ollama.com](https://ollama.com), then run `ollama signin` in a terminal.
+3. **Run `ollama pull gpt-oss:20b-cloud` — you must pull it before it works.** (Just typing the name in Settings is not enough.)
+4. Reopen the wizard (settings drawer → AI Brain (LLM) → Add model), choose Ollama, and pick `gpt-oss:20b-cloud` from the model list.
+
+`gpt-oss:20b-cloud` is the lightest free-tier-friendly model; `qwen3.5:cloud` or `minimax-m3:cloud` are stronger but use up the free limits faster.
+
+> **Honest about "free":** $0 with no credit card, just a free account — but a *light-usage* tier: one cloud model at a time, session limits that reset ~every 5 hours plus weekly limits, and Ollama doesn't publish exact numbers, so heavy chatting can hit a limit until it resets. Inference runs on **Ollama's servers**, so don't send anything you want kept fully private. Cloud models are in preview — **confirm it answers once before relying on it.**
+
+#### Option C — Free hosted API key (Gemini / Cerebras / Groq)
+The best chat quality of the free options. Make a free account (no credit card), create an API key, and paste it in the wizard's cloud path (pick the matching provider, or "custom" with the base URL):
+- **Google AI Studio (Gemini):** `https://generativelanguage.googleapis.com/v1beta/openai/` — generous free tier; note Google may use free-tier chats to improve its products.
+- **Cerebras:** `https://api.cerebras.ai/v1` — very fast, ~1M tokens/day free (short context window on the free tier).
+- **Groq:** `https://api.groq.com/openai/v1` — very fast, with daily token caps.
+
+Use a current model name from each provider's docs. Your chats go to that provider, and free tiers have rate limits.
+
+#### Option D — Paid cloud API key (OpenAI / Claude / Gemini)
+If you already pay for one, paste the key in the wizard. Highest quality; a small model is typically just pennies per chat.
+
+### ⚠️ Reasoning ("thinking") models are NOT supported
+
+Reasoning models such as **`glm-4.7:cloud`** put their answer in a separate `reasoning` field and leave the normal `content` field **empty**. This app reads only `content`, so a reasoning model will show up as a **blank reply** — and since there's nothing to read aloud, **no voice either**.
+
+**Recommendation:** pick a normal (non-reasoning) chat model. A small, fast model gives a more natural, lower-latency companion anyway.
+
+> Manual edit: the LLM config lives under `character_config → agent_config → llm_configs → openai_compatible_llm` in `conf.yaml`. Comments in the file show how to point at OpenAI / Claude / Gemini with your own key. After a manual edit, restart the launcher — or skip the restart by re-saving through the in-app wizard (settings drawer → AI Brain (LLM) → Add model), which hot-applies immediately.
+
+---
+
+## Other settings
+
+### Memory (core + deep recall)
+On by default. Each character keeps its own memory at `chat_history/<conf_uid>/core_memory.md` — persona-injected core memory plus per-turn LLM consolidation (the model decides what to keep). Opt-in **FTS5 trigram deep recall** searches your full history when you want longer-term memory. Tune the memory cap in settings.
+
+### Characters
+Create / edit / switch / delete characters in the app — each has its own name, persona, Live2D skin, voice, and **separate memory**. To add your own Live2D model, drop it under `live2d-models/<name>/`, add an entry in `model_dict.json`, and select it. **Do not commit copyrighted character models to a public repo.**
+
+#### More characters (optional)
+For licensing safety, Hana-Companion bundles only **3 free Live2D Original Characters** (`mao_pro`, `haru`, `hiyori`). Want more — including the male butler character **Natori**? You can download free official Live2D sample models yourself from the official page and drop them in. Get them from **[Live2D's sample models page](https://www.live2d.com/en/learn/sample/)** under Live2D's own license — we don't redistribute them. See [`docs/add-live2d-character.md`](docs/add-live2d-character.md) for the how-to.
+
+### Performance presets
+**Light / Standard / High-performance** presets bundle the ASR/TTS engine choice, memory-consolidation frequency, and model keep-alive. Pick Light on a modest machine, High-performance if you have the hardware.
+
+### Proactive topics & news
+The companion opens topics after idle time. Optionally refresh those topics with current headlines via the bundled news helper (`scripts/news_topics.py`) — pure stdlib, no API key — and schedule it (cron / launchd / Task Scheduler), e.g. every few hours.
+
+### Sleep / quiet mode
+Say "晚安" to stop it initiating; it resumes on your next message. The keyword is configurable.
+
+### Translation
+Optional cross-language subtitle/voice translation, **off by default** (`tts_preprocessor_config → translator_config` in `conf.yaml`).
+
+### Voice
+Default is **edge-tts** (free, no hardware). For a high-quality local/custom voice, run [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) as a service and point the config at it (needs a GPU or Apple Silicon). Voice-cloning a real person's voice is your legal responsibility.
+
+---
+
+## Troubleshooting
+
+**The app won't open / the black window closes right away.**
+Usually a settings or engine choice an older build couldn't recover from. Download the **latest release** — it opens even with an old setting. If you'd rather not update: open `conf.yaml` in the app folder, find `asr_model: 'faster_whisper'`, change it to `asr_model: 'sherpa_onnx_asr'`, save, and relaunch. (Don't restore `conf.yaml.backup` — it has the same setting.)
+
+**It replies in text but there's no voice.**
+Update to the latest release (it bundles the audio tools Windows needs) and run the launcher again so dependencies refresh. If you switched the voice (TTS) engine to GPT-SoVITS, that needs a separate service running — switch back to **Edge TTS** in Settings → Performance for the free built-in voice.
+
+**On the first launch the browser says "this site can't be reached / connection refused."**
+The server is still starting — the first run downloads a ~1GB speech model, which takes a few minutes. Leave the black window open; once it prints that it's running, refresh `http://localhost:12393`. The latest release opens the browser only when it's ready.
+
+**Windows: "Windows protected your PC" (SmartScreen), or nothing seems to happen.**
+Click **More info → Run anyway** — this is the launcher, not a virus (it's just unsigned). If your antivirus blocked the one-time `uv` install, allow the app and run the launcher again, or install `uv` manually from <https://docs.astral.sh/uv/getting-started/installation/> and retry.
+
+**macOS: "cannot be opened because it is from an unidentified developer."**
+Right-click `start-companion.command` → **Open** → **Open**. You only need to do this the first time.
+
+**It opens but never replies / says the AI brain isn't set up.**
+You still need an LLM. Open the setup wizard (settings drawer → AI Brain (LLM) → Add model): paste an API key (OpenAI / Claude / Gemini / Zhipu / DeepSeek / Groq / Cerebras, or a custom OpenAI-compatible endpoint), or pick a local Ollama model. For the local route, make sure the **Ollama app is installed and running** and the model is downloaded.
+
+**Web search / tools don't work with Claude.**
+The setup wizard connects Claude through a compatibility endpoint that doesn't pass tools through, so the experimental web-search/tools toggle may do nothing on Claude. For tools, use a tool-calling model like GPT-4o or Gemini, or a capable local model. (Plain chat with Claude works fine.)
+
+---
+
+## Guides
+
+- [Use it from your phone / tablet (Tailscale)](docs/remote-access-tailscale.md) — reach your companion from another device, even off your home network.
+- [Custom voice with GPT-SoVITS](docs/custom-voice-gpt-sovits.md) — give your character a cloned or custom voice.
+- [Add your own Live2D character](docs/add-live2d-character.md) — drop a model in and switch to it.
+
+## Credits & license
+
+This project would not exist without the upstream work it builds on. Please **star and support [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber)** too.
+
+- **Upstream:** [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) — its server-side code is MIT, Copyright (c) 2025 Yi-Ting Chiu.
+- **This fork's additions** (memory, proactive topics, barge-in, quiet mode, character management, setup wizard, performance presets, sakura-glass UI, animated wallpapers, 7-language UI) — MIT.
+- **Bundled web UI** — `frontend/` is this fork's own hand-written web UI (MIT), which replaced the upstream Open-LLM-VTuber-Web compiled bundle (no longer included). It vendors three JS libraries in `frontend/libs/`: PixiJS (MIT), pixi-live2d-display (MIT), and Live2D Cubism Core (Live2D Proprietary Software License — free redistribution as "Redistributable Code"). See [`NOTICE`](./NOTICE).
+- **Live2D Cubism & bundled sample models** — the bundled **mao_pro** / **haru** / **hiyori** models are Live2D Inc. sample data, used under the **Live2D Free Material License** (see [`LICENSE-Live2D.md`](./LICENSE-Live2D.md)). Required attribution:
+  > This content uses sample data owned and copyrighted by Live2D Inc.
+
+  They are bundled **unmodified** as a free default. **For any paid/commercial build, replace them** with your own CC0 / licensed / commissioned model.
+- **Other components** (see [`NOTICE`](./NOTICE) for each license): GPT-SoVITS (MIT, optional TTS), sherpa-onnx (Apache-2.0, ASR engine — the SenseVoice model has its own license; or use Whisper), Silero VAD (MIT), edge-tts (uses Microsoft's online TTS service), DeepLX (unofficial DeepL endpoint — use the official DeepL API for production).
+
+**Do not ship copyrighted characters, artwork, voices, or trained voice models.** This repo ships only neutral defaults; bring your own.
+
+### License
+
+This fork's own source code is released under the **MIT License**, on top of Open-LLM-VTuber's MIT-licensed server code (Copyright (c) 2025 Yi-Ting Chiu). However, **the whole project is not simply MIT**: the vendored Live2D Cubism Core library (`frontend/libs/live2dcubismcore.min.js`) and the bundled Live2D sample models carry their own Live2D terms. See [`LICENSE`](./LICENSE), [`NOTICE`](./NOTICE), and [`LICENSE-Live2D.md`](./LICENSE-Live2D.md) for the full, accurate picture.
+
+---
+
+## Support this project
+
+This is a free, open-source project — no paywall. If it's useful to you, a tip is appreciated but never required:
+
+- **Ko-fi:** [ko-fi.com/leonhsueh](https://ko-fi.com/leonhsueh)
+- **GitHub Sponsors:** coming soon
+
+And please support the upstream project this is built on — [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber).
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome, and this is a small enough project that yours will actually matter.
+
+**New here? Start with a [good first issue](https://github.com/fuxi0901-gif/Hana-Companion/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).**
+
+The easiest way in: Hana-Companion's speech recognition, voices, and translation are all pluggable, and adding one is **a new file plus one branch in a factory**. There are already 20 voices and 8 speech engines in the tree to copy from. [`CONTRIBUTING.md`](./CONTRIBUTING.md) has step-by-step recipes.
+
+- File bugs and feature ideas in **Issues** — this repo, not upstream.
+- For code changes, open a **Pull Request** with a clear description, and say what platform you tested on. Most bugs here are platform-specific.
+- Please **do not** add copyrighted characters, artwork, voices, or trained voice models — keep the repo shippable as neutral defaults only.
+
+Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before starting anything large — it lists what is out of scope, so you don't spend a weekend on something that gets turned down.
+
+---
+---
+
+# 繁體中文
+
+**語言：** [English](#hana-companion) | **繁體中文** | [日本語](./README.JP.md) | [한국어](./README.KR.md) | [简体中文](./README.CN.md)
+
+## 這是什麼？
+
+**Hana-Companion** 把一個 Live2D 角色變成你真的會去聊天的 AI 桌面陪伴：它記得你、會自己開話題、你說話時它會聽、你說「晚安」它就安靜下來。
+
+它是把優秀的開源專案 [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) 重新打包成**對小白友善**的版本。我們站在它的肩膀上：上游提供穩定的 Live2D + 語音辨識/合成 + LLM 底層，這個 fork 則把它包成「**下載 → 雙擊 → 開聊**」的體驗，並加上長期記憶、主動話題、自然插話語音、角色管理、首次啟動設定精靈，以及全新的七語言櫻花玻璃質感網頁介面。
+
+**我們的原則 — 以及我們刻意不做的事：**
+
+- **免費開源 + 捐款**：沒有付費版、沒有付費牆。
+- **不做手機版**：只做桌面（macOS / Windows）。
+- **不做模型市集、不附帶有版權的角色**：藉此避開 Live2D 商用授權的陷阱 — 我們只附中性的免費預設，角色、語音、LLM 都由你自己帶。
+
+> 本專案建構於 Open-LLM-VTuber 之上。完整致謝與各元件授權見 [`NOTICE`](./NOTICE)，原專案文件保留於 [`README.upstream.md`](./README.upstream.md)。
+
+## 功能亮點
+
+- **長期記憶**：它會記得你是誰、你在忙什麼，並隨時間越來越了解你。每個角色有一份「核心記憶」注入人設；每輪結束後由 LLM 決定哪些值得存下來。更新即時生效，不用重啟。記憶上限可調。
+- **深度回想（FTS5 trigram）**：可選開啟，全歷史搜尋你說過的每句話，完整支援中日韓文字。
+- **主動話題**：沉默一段時間後它會自己開話題。可選擇抓最新的 AI／科技／動漫／遊戲新聞來聊（純標準函式庫，**不需要 API key**）。
+- **自然插話語音對話**：隨時都能開口，不必等麥克風，也能像真人對話一樣中途打斷它。
+- **睡眠／勿擾模式**：說「晚安」它就停止主動發話，下次你跟它說話時恢復。關鍵字可改。
+- **角色管理**：建立／編輯／切換／刪除角色 — 名稱＋人設＋Live2D 皮＋語音＋各自獨立的記憶。
+- **首次啟動設定精靈**：貼上 API key（OpenAI／Claude／Gemini／智譜／DeepSeek／Groq／Cerebras，或任何自訂 OpenAI 相容端點）或選本地 Ollama 模型。精靈甚至能幫你下載推薦的 Ollama 模型（即時進度條、免終端機），存檔前也會先做一次測試呼叫。
+- **隨時新增或切換模型、免重啟**：設定抽屜裡有「AI 大腦（LLM）」區塊；存檔新的 key／模型會立即熱套用到執行中的伺服器（conf.yaml 註解保留、key 回讀時遮罩顯示、永不離開你的電腦）。
+- **效能預設**：輕量／標準／高效能三檔，一鍵搭配好 ASR/TTS 引擎＋記憶整理頻率＋模型常駐。
+- **跨語言翻譯**：可選的字幕／語音翻譯（預設關閉）。
+- **開箱即用**：內建範例 Live2D 模型＋免費雲端語音（edge-tts）＋自動下載的語音辨識模型（約 1GB，僅在第一次啟動時下載一次、需數分鐘），你只要插上一個 LLM。
+- **全新櫻花玻璃質感網頁介面**：夜櫻玻璃擬態設計 — 磨砂玻璃面板與按鈕懸浮在場景上、可收合的頂欄、拖曳角色隨意移動、按住角色滾動滾輪縮放、點一下她會在頭頂浮現名牌。
+- **動態桌布**：可用圖片**或影片**（MP4 / WebM / MOV，上限 2GB，支援 4K）作為場景背景，提供填滿裁切／完整顯示／拉伸／原始大小四種適配模式與 25–400% 縮放。
+- **七語言介面**：简体中文 / 繁體中文 / English / 日本語 / 한국어 / Русский / Español。
+
+## 截圖
+
+![Hana-Companion — 你的 Live2D AI 陪伴實際運作畫面](assets/hana-companion-hero.png)
+
+*Hana-Companion 在桌面上運作：一個你真的會去聊天的 Live2D 角色。*
+
+## 快速開始（下載 → 雙擊 → 開聊）
+
+最簡單的路徑，**完全不用終端機。**
+
+> **開始前先準備好：你需要一顆 AI「大腦」（LLM）。**
+> Hana-Companion 是**身體和臉** — 角色外型、聲音、記憶都有了。但真正會思考、會講話的**大腦**，是一個另外的 AI，要由**你**來提供。你會在首次啟動精靈裡設定它。選項由簡到繁：
+> - **（推薦 — 免費、私密、跑在你自己的電腦上）透過 Ollama 用本地模型。** 安裝免費的 **[Ollama](https://ollama.com)** app，然後在終端機執行 `ollama pull qwen2.5:3b`（一個約 1.9 GB 的小模型）。Hana-Companion 的預設本來就指向它，所以直接就能用 — **不用帳號、不用 API key、零費用、可離線、而且你的對話永遠不會離開你的電腦。** 一般 8–16 GB 的筆電就跑得動。（想要更聰明的回覆、記憶體也夠？拉一個更大的模型，例如 `qwen2.5:7b`，再到設定裡選它。）
+> - **（選用 — 電腦較弱時品質更好）Ollama Cloud 免費方案。** Ollama 可以在*它的*伺服器上免費跑一個更大的模型（有額度限制）。需要一個免費帳號 — 見下方**方案 B**；你必須先 `ollama pull` 那個雲端模型。
+> - **（選用 — 免費中品質最好）免費的雲端 API key。** Google AI Studio（Gemini）、Cerebras 或 Groq 提供免費 key（免綁信用卡）。免費選項中品質最好，但需要帳號 + key，而且你的對話會送到該供應商。見**方案 C**。
+> - **（如果你本來就有付費的）雲端 API key**：來自 OpenAI／Claude／Gemini — 頂級品質，一次聊天幾分錢。見**方案 D**。
+
+1. **下載 Hana-Companion。** 到 [**Releases 頁面**](https://github.com/fuxi0901-gif/Hana-Companion/releases/latest) 下載最新的 `Hana-Companion-*.zip`，然後解壓縮（例如解到桌面）。_（或者在 repo 主頁點綠色 **`<> Code`** 按鈕 → **Download ZIP**。）_
+2. **雙擊資料夾裡的啟動器**：
+   - **macOS：** `start-companion.command`
+   - **Windows：** `start-companion.bat`
+   - 第一次啟動會自動安裝所有東西（先 `uv`，再相依套件），可能要幾分鐘。**那個視窗別關，它就是伺服器本體。**
+3. 瀏覽器會自動開到 **http://localhost:12393**。第一次會出現**設定精靈**：**貼上 API key**（OpenAI／Claude／Gemini／智譜／DeepSeek／Groq／Cerebras，或任何自訂 OpenAI 相容端點），**或**選一個本地 **Ollama 模型** —— 精靈甚至能幫你下載推薦的模型。存檔前會先做一次快速測試呼叫。
+
+   ![Hana-Companion 首次啟動設定精靈](assets/hana-companion-setup.png)
+
+   *首次啟動的設定精靈，在這裡接上你的 AI「大腦」。*
+
+4. **直接開聊 —— 不用重啟。** 你選的設定在存檔當下就會熱套用到執行中的伺服器。點一下頁面以解鎖音訊即可開始聊天。（之後要結束：關掉步驟 2 那個啟動器／終端機視窗，伺服器就會停止。）
+
+> **macOS Gatekeeper（僅第一次）：** 雙擊時可能跳出「**無法打開，因為來自未識別的開發者**」。這對未簽章的開源 app 是正常的。請對 `start-companion.command` **按右鍵 → 打開 → 打開**。允許一次之後，往後就能直接雙擊了。（我們不提供簽章／公證版本 — 這是免費版。）
+
+> **Windows SmartScreen（僅第一次）：** 雙擊時可能跳出藍色的「**Windows 已保護您的電腦**」視窗。這對未簽章的開源 app 是正常的。請點 **其他資訊** → **仍要執行**。允許一次之後就不會再問了。
+
+開箱使用內建的 **mao** 範例 Live2D 模型與 **edge-tts**（免費雲端語音，不需顯卡）。第一次啟動也會自動下載一個語音辨識模型 —— 它大約 **1GB**，所以**第一次啟動會做一次性的下載＋解壓，可能要好幾分鐘**。這段期間啟動器視窗看起來像卡住了，其實沒有，**請別關掉、讓它跑完**；這只會發生一次。
+
+### 習慣用終端機？（進階）
+
+大多數人用上面的 **Download ZIP** 路徑就好。如果你熟悉終端機，也可以改用 clone 取得專案。需要 **Python ≥ 3.10、< 3.13** 與 [`uv`](https://github.com/astral-sh/uv)。
+
+```bash
+git clone https://github.com/fuxi0901-gif/Hana-Companion.git && cd Hana-Companion
+uv sync                  # 安裝相依套件
+uv run run_server.py     # 啟動伺服器
+# 開 http://localhost:12393  → 設定精靈 → 開聊
+```
+
+## 開啟、關閉、開機自動啟動
+
+**怎麼開（啟動「主機」）：**
+
+- **Windows：** 雙擊 **`start-companion.bat`**
+- **macOS：** 雙擊 **`start-companion.command`** —— 第一次系統可能會擋，對檔案按右鍵 → **打開** → 再按一次 **打開**；之後正常雙擊就行。
+
+會跳出一個黑色命令視窗 —— **那個視窗就是伺服器，聊天期間要一直開著。** 等它準備好，會自己用瀏覽器打開 app（`http://localhost:12393`）。可以這樣想：**命令視窗是引擎，瀏覽器分頁只是畫面。**
+
+> 僅限第一次啟動：會下載約 1GB 的語音模型、要等幾分鐘，視窗看起來像卡住其實沒有 —— 讓它開著跑完即可。
+
+**怎麼關：**
+
+- **關掉那個黑色命令視窗**（或在裡面按 **Ctrl + C**），角色就完全停止。
+- 只關**瀏覽器分頁**只是隱藏畫面，伺服器還在跑；要真的停掉請關命令視窗。
+- 若你裝了 **Ollama** 跑本地大腦，它會在背景持續執行。閒置時很省，可以不管；想關就從工作列（Windows）／選單列（macOS）的圖示 Quit。
+
+**之後要再開：** 再執行同一個啟動器即可（它也是你的日常啟動器）。
+
+**讓它在電腦開機時自動啟動（選配）：**
+
+- **Windows**
+  1. 對 **`start-companion.bat`** 按右鍵 → **建立捷徑**。
+  2. 按 **Win + R**，輸入 **`shell:startup`**，按 **Enter** —— 會打開「啟動」資料夾。
+  3. 把捷徑拖進那個資料夾。以後每次登入都會自動開啟。*（要取消：把該捷徑從資料夾刪掉。）*
+
+- **macOS**
+  1. 打開 **系統設定 → 一般 → 登入項目與擴充功能**。
+  2. 在 **登入時開啟** 下按 **+**，選 **`start-companion.command`**（或把檔案拖進清單）。
+  *（要取消：選取它後按 **−**。）*
+
+兩種方式都會在登入時自動跳出命令視窗（接著是瀏覽器）。提醒：每次開機會跳出一個終端機視窗是正常的，那就是引擎在啟動。若你用本地 Ollama 大腦，Ollama 裝好後本來就會開機自啟，所以整套會自己起來。
+
+## LLM 設定（必做）
+
+你需要**擇一**：雲端 LLM 的 API key，**或**一個本地 LLM。陪伴聊天用便宜的模型就很夠，不需要旗艦級。
+
+#### 方案 A — 本地 Ollama（推薦：免費、私密、不用帳號）
+安裝 [Ollama](https://ollama.com/download)，然後在終端機執行 `ollama pull qwen2.5:3b`（約 1.9 GB）。Hana-Companion 的預設本來就用 `qwen2.5:3b`，所以下載完成後，在精靈裡把 Ollama 選項存檔一次就能立刻使用 —— 不用重啟、不用 API key、不用帳號、零雲端費用、完全離線，而且你的對話都留在你的電腦上。一般 8–16 GB 的筆電就跑得很順。想要更聰明的回覆，可以拉一個更大的模型（例如 `qwen2.5:7b`），再到設定抽屜（AI 大腦（LLM）→ 新增模型）裡選它。
+
+#### 方案 B — 透過 Ollama 用雲端模型（免費帳號；電腦較弱時很適合）
+Ollama 可以在它自己的伺服器上跑一個*更大的*模型，所以慢的電腦也能得到不錯的回覆。免費方案，但需要一個帳號、而且你必須先把模型拉下來：
+1. 從 [ollama.com/download](https://ollama.com/download) 安裝 Ollama（v0.12+）。
+2. 到 [ollama.com](https://ollama.com) 開一個免費帳號，然後在終端機執行 `ollama signin`。
+3. **執行 `ollama pull gpt-oss:20b-cloud` —— 必須先拉下來才能用。**（只在設定裡填名字是不夠的。）
+4. 重新開啟精靈（設定抽屜 → AI 大腦（LLM）→ 新增模型），選 Ollama，並從模型清單挑 `gpt-oss:20b-cloud`。
+
+`gpt-oss:20b-cloud` 是最適合免費額度的輕量模型；`qwen3.5:cloud` 或 `minimax-m3:cloud` 更強，但會更快用掉免費額度。
+
+> **誠實說明「免費」：** 完全 $0、免綁信用卡，只要一個免費帳號 —— 但屬於「輕量使用」等級：一次只能跑一個雲端模型，session 額度每約 5 小時重置一次、外加每週額度，而且 Ollama 沒有公布確切數字，所以聊太多可能會碰到額度上限、要等重置。運算跑在 **Ollama 的伺服器上**，所以不要傳你想完全保密的內容。雲端模型還在 preview 階段 —— **依賴它之前，先確認它真的能回一次。**
+
+#### 方案 C — 免費的雲端 API key（Gemini／Cerebras／Groq）
+免費選項中聊天品質最好。開一個免費帳號（免綁信用卡），建立一把 API key，到精靈的雲端路徑貼上（選對應供應商，或用「自訂」填 base URL）：
+- **Google AI Studio（Gemini）：** `https://generativelanguage.googleapis.com/v1beta/openai/` —— 免費額度大方；注意 Google 可能會用免費方案的對話來改進它的產品。
+- **Cerebras：** `https://api.cerebras.ai/v1` —— 很快，每天約 1M token 免費（免費方案的 context window 較短）。
+- **Groq：** `https://api.groq.com/openai/v1` —— 很快，有每日 token 上限。
+
+請用各供應商文件裡目前可用的模型名。你的對話會送到該供應商，而且免費方案有速率限制。
+
+#### 方案 D — 付費的雲端 API key（OpenAI／Claude／Gemini）
+如果你本來就有付費的，把 key 貼進精靈即可。品質最高；用小模型通常一次聊天只要幾分錢。
+
+### ⚠️ 思考型（reasoning）模型不適用
+
+像 **`glm-4.7:cloud`** 這類思考型模型，會把答案放在另一個 `reasoning` 欄位，而一般的 `content` 欄位是**空的**。這個 app 只讀 `content`，所以思考型模型會顯示成**空白回覆** — 沒有文字可念，**語音也不會出聲**。
+
+**建議：** 選一個一般（非思考型）的對話模型。小而快的模型反而讓陪伴更自然、延遲更低。
+
+## 其他設定
+
+- **記憶（核心＋深度回想）**：預設開啟，每個角色記憶獨立存在 `chat_history/<conf_uid>/core_memory.md`，每輪由 LLM 決定要存什麼；可選開啟 **FTS5 深度回想**搜尋全歷史。記憶上限可在設定調整。
+- **角色**：在 app 內建立／編輯／切換／刪除，每個角色有獨立的名稱、人設、Live2D 皮、語音與記憶。要加自己的模型，放到 `live2d-models/<name>/` 並在 `model_dict.json` 加一筆。**不要把有版權的角色模型 commit 進公開 repo。**
+  - **想要更多角色（選用）**：為了授權安全，Hana-Companion 只內建 **3 個免費的 Live2D 原創角色**（`mao_pro`、`haru`、`hiyori`）。想要更多 — 包含男管家角色 **Natori（名取）**？你可以自己到官方頁面下載免費的官方 Live2D 範例模型再放進來。請從 **[Live2D 範例模型頁面](https://www.live2d.com/en/learn/sample/)** 依 Live2D 自己的授權下載 — 我們不代為散布。作法見 [`docs/add-live2d-character.md`](docs/add-live2d-character.md)。
+- **效能預設**：輕量／標準／高效能，一鍵搭好引擎、整理頻率與模型常駐。
+- **主動話題與新聞**：可用 `scripts/news_topics.py`（純標準函式庫、不需 key）定時更新話題。
+- **睡眠／勿擾**：說「晚安」停止主動發話，下次對話恢復，關鍵字可改。
+- **翻譯**：可選的跨語言字幕／語音翻譯，預設關閉。
+- **語音**：預設 edge-tts（免費、不需硬體）；要高品質本地／自訂語音可接 GPT-SoVITS（需顯卡或 Apple Silicon）。克隆真人聲音的法律責任由你自負。
+
+## 疑難排解
+
+**App 打不開／黑色視窗一開就關。**
+多半是改了某個設定／引擎、舊版救不回來。抓**最新版**即可（新版就算帶著舊設定也開得起來）。不想更新的話：打開 app 資料夾的 `conf.yaml`，找到 `asr_model: 'faster_whisper'` 改成 `asr_model: 'sherpa_onnx_asr'`，存檔重開。（別還原 `conf.yaml.backup`，裡面是同一個壞設定。）
+
+**能回文字但沒聲音。**
+更新到最新版（內含 Windows 需要的音訊工具），並再跑一次啟動器讓相依更新。如果你把語音（TTS）引擎切成 GPT-SoVITS，那需要另外跑一個服務 —— 到 設定 → 效能 切回 **Edge TTS** 用免費內建語音。
+
+**第一次開，瀏覽器顯示「無法連上這個網站／拒絕連線」。**
+伺服器還在啟動 —— 第一次會下載約 1GB 語音模型、要等幾分鐘。讓黑色視窗開著，等它印出在執行了，再重新整理 `http://localhost:12393`。最新版會等伺服器準備好才自動開瀏覽器。
+
+**Windows：「Windows 已保護您的電腦」（SmartScreen），或按了沒反應。**
+按 **其他資訊 → 仍要執行** —— 這是啟動器、不是病毒（只是沒簽章）。若防毒擋掉了一次性的 `uv` 安裝，把這個 app 加進允許清單再跑一次，或到 <https://docs.astral.sh/uv/getting-started/installation/> 手動裝 `uv` 後重試。
+
+**macOS：「無法打開，因為來自未識別的開發者」。**
+對 `start-companion.command` 按右鍵 → **打開** → **打開**。只有第一次需要這樣。
+
+**開得起來但都不回覆／顯示 AI 大腦尚未設定。**
+你還沒設定 LLM。打開設定精靈（設定抽屜 → AI 大腦（LLM）→ 新增模型）：貼一個 API 金鑰（OpenAI / Claude / Gemini / 智譜 / DeepSeek / Groq / Cerebras，或自訂 OpenAI 相容端點），或選一個本地 Ollama 模型。走本地路線要確認 **Ollama app 已安裝並在執行**、而且模型已下載。
+
+**用 Claude 時網路搜尋／工具沒作用。**
+設定精靈把 Claude 接到一個相容端點、不會把工具傳過去，所以對 Claude 來說網路搜尋／工具（那個實驗性開關）可能沒效果。要用工具請改用支援工具呼叫的模型，例如 GPT-4o 或 Gemini，或夠強的本地模型。（用 Claude 純聊天是正常的。）
+
+---
+
+## 教學
+
+- [從手機／平板遠端使用（Tailscale）](docs/remote-access-tailscale.md) — 即使不在家，也能從別的裝置開啟你的虛擬角色。
+- [用 GPT-SoVITS 自訂聲音](docs/custom-voice-gpt-sovits.md) — 讓角色用克隆或自訂的聲音說話。
+- [自己加 Live2D 角色](docs/add-live2d-character.md) — 把模型放進來並切換使用。
+
+## 致謝與授權
+
+沒有上游就沒有這個專案，也請去 **star 並支持 [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber)**。
+
+- **上游：** [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) — 其伺服器端程式碼為 MIT，Copyright (c) 2025 Yi-Ting Chiu。
+- **本 fork 新增的部分**（記憶、主動話題、插話、勿擾、角色管理、設定精靈、效能預設、櫻花介面、動態桌布、多語言介面）— MIT。
+- **內建網頁介面：** `frontend/` 是本 fork 自行手寫的網頁介面（MIT），已取代上游 Open-LLM-VTuber-Web 的編譯包（不再附帶）。`frontend/libs/` 內附三個第三方函式庫：PixiJS（MIT）、pixi-live2d-display（MIT）、Live2D Cubism Core（Live2D 專屬軟體授權，可作為「可再散布程式碼」免費散布）。見 [`NOTICE`](./NOTICE)。
+- **Live2D Cubism 與內建範例模型：** 內建的 **mao_pro** / **haru** / **hiyori** 為 Live2D Inc. 範例資料，依 **Live2D 無償提供材料授權**使用（見 [`LICENSE-Live2D.md`](./LICENSE-Live2D.md)），必須保留致謝句：
+  > This content uses sample data owned and copyrighted by Live2D Inc.
+
+  它們以**未修改**形式作為免費預設附帶。**任何付費／商用版本都必須替換**成你自己的 CC0／已授權／委託製作的模型。
+- **其他元件**（各授權見 [`NOTICE`](./NOTICE)）：GPT-SoVITS（MIT，選用 TTS）、sherpa-onnx（Apache-2.0，ASR 引擎；SenseVoice 模型另有授權，或改用 Whisper）、Silero VAD（MIT）、edge-tts（使用微軟線上語音服務）、DeepLX（非官方 DeepL 端點，正式環境請改用官方 DeepL API）。
+
+**請勿散布有版權的角色、美術、語音或訓練過的語音模型。** 本 repo 只附中性預設，其餘自己帶。
+
+### License
+
+本 fork 自己寫的程式碼以 **MIT 授權**釋出，建構於 Open-LLM-VTuber 同為 MIT 授權的伺服器端程式碼之上（Copyright (c) 2025 Yi-Ting Chiu）。但**整個專案並非單純的 MIT**：內附的 Live2D Cubism Core 函式庫（`frontend/libs/live2dcubismcore.min.js`）與內建的 Live2D 範例模型另有其 Live2D 授權條款。完整且準確的內容見 [`LICENSE`](./LICENSE)、[`NOTICE`](./NOTICE) 與 [`LICENSE-Live2D.md`](./LICENSE-Live2D.md)。
+
+## 支持本專案
+
+這是免費開源專案，沒有付費牆。如果它對你有幫助，歡迎（但絕非必須）小額贊助：
+
+- **Ko-fi:** [ko-fi.com/leonhsueh](https://ko-fi.com/leonhsueh)
+- **GitHub Sponsors:** 即將開放
+
+也請支持本專案所建構於的上游 — [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber)。
+
+## 貢獻指南
+
+歡迎開 issue 與 pull request。這個專案還小，你的一個 PR 是真的有份量的。
+
+**第一次來？從 [good first issue](https://github.com/fuxi0901-gif/Hana-Companion/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) 開始。**
+
+最好上手的地方：Hana-Companion 的語音辨識、聲音、翻譯全都是可插拔的，加一個等於**新增一個檔案 + 在 factory 加一個分支**。樹裡已經有 20 個聲音引擎和 8 個語音辨識引擎可以照抄，[`CONTRIBUTING.md`](./CONTRIBUTING.md) 有一步一步的作法。
+
+- bug 與功能想法請開 **Issue**——開在這個 repo，不是上游。
+- 程式碼變更請開 **Pull Request** 並清楚說明，順便講一下你在哪個平台測的。這裡多數 bug 都跟平台有關。
+- 請**不要**加入有版權的角色、美術、語音或訓練過的語音模型，讓 repo 維持可發布的中性預設狀態。
+
+要動比較大的東西之前先看 [`CONTRIBUTING.md`](./CONTRIBUTING.md)，裡面寫了哪些方向已經拍板不做，免得你花一個週末做出來卻被退。

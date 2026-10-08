@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>Hana-Companion · 花影舞台</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/app/styles.css" />
+  </head>
+
+  <body>
+    <div class="stage-shell" id="app">
+      <!-- 沉浸场景层 -->
+      <div class="scene" aria-hidden="true">
+        <div class="scene__gradient" id="sceneGradient"></div>
+        <div class="scene__bgimg" id="sceneBgImg"></div>
+        <video class="scene__bgvideo" id="sceneBgVideo" muted loop playsinline preload="auto"></video>
+        <div class="scene__aurora" id="sceneAurora"></div>
+        <div class="scene__moon" id="sceneMoon"></div>
+        <div class="scene__petals" id="petalField"></div>
+        <div class="scene__vignette"></div>
+      </div>
+
+      <!-- 加载遮罩 -->
+      <div class="boot" id="boot" role="status" aria-live="polite">
+        <div class="boot__card glass">
+          <div class="boot__blossom" aria-hidden="true">🌸</div>
+          <p class="boot__text" id="bootText">正在点亮樱花舞台…</p>
+          <div class="boot__bar" aria-hidden="true"><i></i></div>
+        </div>
+      </div>
+
+      <!-- 顶栏 -->
+      <header class="topbar glass" id="topbar">
+        <div class="topbar__left">
+          <div class="brand">
+            <span class="brand__mark" aria-hidden="true">🌸</span>
+            <span class="brand__name">Hana-Companion</span>
+          </div>
+          <span class="status-pill" id="statusPill" role="status" aria-live="polite">
+            <i class="status-pill__dot"></i>
+            <span id="statusText">连接中…</span>
+          </span>
+        </div>
+
+        <div class="topbar__center">
+          <span class="model-badge" id="modelBadge" title="">
+            <i class="model-badge__pulse" aria-hidden="true"></i>
+            <span id="modelBadgeText">Live2D</span>
+          </span>
+        </div>
+
+        <div class="topbar__right">
+          <div class="lang-switch" role="group" aria-label="Language">
+            <button class="lang-switch__btn is-active" data-lang="zh" aria-pressed="true" title="简体中文">简</button>
+            <button class="lang-switch__btn" data-lang="zh-TW" aria-pressed="false" title="繁體中文">繁</button>
+            <button class="lang-switch__btn" data-lang="en" aria-pressed="false" title="English">英</button>
+            <button class="lang-switch__btn" data-lang="ja" aria-pressed="false" title="日本語">日</button>
+            <button class="lang-switch__btn" data-lang="ko" aria-pressed="false" title="한국어">韩</button>
+            <button class="lang-switch__btn" data-lang="ru" aria-pressed="false" title="Русский">俄</button>
+            <button class="lang-switch__btn" data-lang="es" aria-pressed="false" title="Español">西</button>
+          </div>
+          <button class="icon-btn" id="btnMute" aria-label="Mute" aria-pressed="false">
+            <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true">
+              <path d="M11 5 6 9H3v6h3l5 4V5z" class="spk" />
+              <path d="M15 9l6 6M21 9l-6 6" class="wave" />
+            </svg>
+          </button>
+          <button class="icon-btn is-accent" id="btnSettings" aria-label="Settings" aria-pressed="false">
+            <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4L9.5 5.7a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10.2 21h4l.3-2.7a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z" />
+            </svg>
+          </button>
+          <button class="icon-btn topbar__collapse" id="btnTopbarCollapse" aria-label="Hide top bar" aria-expanded="true">
+            <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><path d="M18 15l-6-6-6 6" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- 顶栏收起后的恢复按钮 -->
+      <button class="topbar-restore glass" id="btnTopbarRestore" hidden aria-label="Show top bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+
+      <!-- 中央舞台：Live2D -->
+      <main class="stage" id="stage">
+        <canvas id="live2dCanvas" aria-label="Live2D character stage"></canvas>
+
+        <div class="name-tag" id="nameTag" hidden aria-hidden="true"><span id="nameTagText"></span></div>
+
+        <div class="subtitle glass" id="subtitle" hidden>
+          <span class="subtitle__text" id="subtitleText"></span>
+        </div>
+
+        <div class="stage__statusline glass" id="stageStatusLine" hidden>
+          <span id="stageStatusText"></span>
+        </div>
+      </main>
+
+      <!-- 聊天面板 -->
+      <aside class="chat glass" id="chatPanel" aria-label="Chat">
+        <header class="chat__head">
+          <span class="chat__title">🌸 <span data-i18n="chat.title">聊天室</span></span>
+          <div class="chat-model" id="chatModelWrap">
+            <button class="chat-model__btn" id="btnChatModel" type="button" aria-haspopup="true" aria-expanded="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>
+              <span class="chat-model__name" id="chatModelName">…</span>
+            </button>
+          </div>
+          <button class="icon-btn chat__collapse" id="btnChatCollapse" aria-label="Collapse chat" aria-expanded="true">
+            <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+          </button>
+        </header>
+
+        <div class="chat__list" id="chatList" aria-live="polite"></div>
+
+        <footer class="chat__input">
+          <div class="chat__attach-row" id="attachRow" hidden></div>
+          <div class="chat__inputbar">
+            <button class="icon-btn chat__attach-btn" id="btnAttach" aria-label="Attach image">
+              <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true">
+                <path d="M21 12.5l-8.5 8.5a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8" />
+              </svg>
+            </button>
+            <input type="file" id="fileInput" accept="image/*" multiple hidden />
+            <div class="chat__field">
+              <textarea id="chatText" rows="1" placeholder="说点什么…"></textarea>
+            </div>
+            <button class="mic-btn" id="btnMic" aria-label="Hold to talk" aria-pressed="false" aria-describedby="micHint">
+              <svg viewBox="0 0 24 24" class="mic-btn__ic" aria-hidden="true">
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+              </svg>
+              <span class="mic-btn__ring" aria-hidden="true"></span>
+            </button>
+            <button class="send-btn" id="btnSend" aria-label="Send">
+              <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><path d="M3 11l18-7-7 18-2-8-9-3z" /></svg>
+            </button>
+          </div>
+          <p class="chat__hint" id="micHint">按住麦克风说话，或直接输入文字</p>
+        </footer>
+      </aside>
+
+      <!-- 侧边面板 -->
+      <aside class="panel glass" id="sidePanel" aria-label="Side panel" role="complementary">
+        <nav class="panel__tabs" role="tablist" aria-label="Panels">
+          <button class="panel__tab is-active" data-tab="chars" role="tab" aria-selected="true">
+            <span aria-hidden="true">🎭</span> <span data-i18n="tab.chars">角色</span>
+          </button>
+          <button class="panel__tab" data-tab="bgs" role="tab" aria-selected="false">
+            <span aria-hidden="true">🖼️</span> <span data-i18n="tab.bgs">场景</span>
+          </button>
+          <button class="panel__tab" data-tab="history" role="tab" aria-selected="false">
+            <span aria-hidden="true">📜</span> <span data-i18n="tab.history">历史</span>
+          </button>
+        </nav>
+
+        <section class="panel__scroll" id="tabChars" role="tabpanel">
+          <h2 class="panel__heading" data-i18n="tab.chars">选择角色</h2>
+          <ul class="card-grid" id="charList"></ul>
+          <button class="btn btn--ghost btn--block" id="btnNewChar">
+            <span aria-hidden="true">✨</span> <span data-i18n="char.new">新建角色</span>
+          </button>
+        </section>
+
+        <section class="panel__scroll is-hidden" id="tabBgs" role="tabpanel">
+          <h2 class="panel__heading" data-i18n="tab.bgs">选择场景</h2>
+          <label class="field">
+            <span data-i18n="bg.fit">适配方式</span>
+            <select id="bgFitSelect" class="input">
+              <option value="cover" data-i18n="bg.fit.cover">填满裁切</option>
+              <option value="contain" data-i18n="bg.fit.contain">完整显示</option>
+              <option value="stretch" data-i18n="bg.fit.stretch">拉伸铺满</option>
+              <option value="original" data-i18n="bg.fit.original">原始大小</option>
+            </select>
+          </label>
+          <label class="field">
+            <span><span data-i18n="bg.zoom">背景缩放</span> <b id="bgZoomVal">100%</b></span>
+            <input type="range" id="bgZoom" min="0.25" max="4" step="0.05" value="1" />
+          </label>
+          <ul class="bg-list" id="bgList"></ul>
+          <button class="btn btn--ghost btn--block" id="btnUploadBg">
+            <span aria-hidden="true">⬆️</span> <span data-i18n="bg.upload">上传背景</span>
+          </button>
+          <input type="file" id="bgFileInput" accept=".jpg,.jpeg,.png,.gif,.mp4,.webm,.mov" hidden />
+        </section>
+
+        <section class="panel__scroll is-hidden" id="tabHistory" role="tabpanel">
+          <h2 class="panel__heading" data-i18n="tab.history">对话历史</h2>
+          <button class="btn btn--primary btn--block" id="btnNewChat">
+            <span aria-hidden="true">🆕</span> <span data-i18n="history.new">开始新对话</span>
+          </button>
+          <ul class="history-list" id="historyList"></ul>
+        </section>
+      </aside>
+
+      <!-- 底部控制台 -->
+      <nav class="dock glass" id="dock" aria-label="Quick controls">
+        <button class="dock__btn" id="dockMic" aria-label="Microphone" aria-pressed="false">
+          <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+          </svg>
+        </button>
+        <button class="dock__btn is-danger is-hidden" id="dockInterrupt" aria-label="Interrupt">
+          <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true">
+            <rect x="7" y="7" width="10" height="10" rx="2" />
+          </svg>
+        </button>
+        <button class="dock__btn" id="dockAdjust" aria-label="Adjust character" aria-pressed="false">
+          <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true">
+            <circle cx="6" cy="8" r="2.2" /><path d="M6 10.2V20M6 5.8V4" />
+            <circle cx="12" cy="14" r="2.2" /><path d="M12 16.2V20M12 11.8V4" />
+            <circle cx="18" cy="7" r="2.2" /><path d="M18 9.2V20M18 4.8V4" />
+          </svg>
+        </button>
+        <button class="dock__btn" id="dockChar" aria-label="Characters">
+          <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 20c.5-3.5 3.5-5 8-5s7.5 1.5 8 5" /></svg>
+        </button>
+        <button class="dock__btn" id="dockBg" aria-label="Scenes">
+          <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><path d="M4 17l5-6 4 4 3-3 4 5zM3 4h18v16H3z" /></svg>
+        </button>
+        <button class="dock__btn" id="dockChat" aria-label="Chat">
+          <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 16 0z" /></svg>
+        </button>
+      </nav>
+
+      <!-- 快捷调整弹出面板 -->
+      <div class="adjust-pop glass" id="adjustPop" hidden role="dialog" aria-label="Quick adjust">
+        <div class="adjust-pop__head">
+          <span data-i18n="adjust.title">快捷调整</span>
+          <button class="icon-btn" id="btnAdjustClose" aria-label="Close">
+            <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+        <label class="setting__row">
+          <span data-i18n="settings.modelSize">人物大小</span>
+          <span class="range">
+            <input type="range" id="qaSize" min="0.4" max="2" step="0.05" value="1" />
+            <b id="qaSizeVal">100%</b>
+          </span>
+        </label>
+        <label class="setting__row">
+          <span data-i18n="adjust.posX">水平位置</span>
+          <span class="range">
+            <input type="range" id="qaX" min="-40" max="40" step="1" value="0" />
+            <b id="qaXVal">0</b>
+          </span>
+        </label>
+        <label class="setting__row">
+          <span data-i18n="adjust.posY">垂直位置</span>
+          <span class="range">
+            <input type="range" id="qaY" min="-35" max="35" step="1" value="0" />
+            <b id="qaYVal">0</b>
+          </span>
+        </label>
+        <div class="setting__actions">
+          <button class="btn btn--ghost" id="btnAdjustReset" data-i18n="adjust.reset">重置</button>
+        </div>
+      </div>
+
+      <!-- 设置抽屉 -->
+      <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+      <aside class="drawer glass" id="settingsDrawer" aria-label="Settings" role="dialog" aria-hidden="true">
+        <header class="drawer__head">
+          <h2 class="drawer__title" data-i18n="settings.title">设定</h2>
+          <button class="icon-btn" id="btnDrawerClose" aria-label="Close">
+            <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="drawer__body">
+          <details class="setting" open>
+            <summary data-i18n="settings.character">当前角色</summary>
+            <div class="setting__card" id="currentCharCard"></div>
+            <div class="setting__actions">
+              <button class="btn btn--primary" id="btnEditChar" data-i18n="char.edit">编辑角色</button>
+              <button class="btn btn--danger is-hidden" id="btnDeleteChar" data-i18n="char.delete">删除</button>
+            </div>
+          </details>
+
+          <details class="setting">
+            <summary data-i18n="settings.llm">AI 大脑（LLM）</summary>
+            <div class="setting__note" id="llmStatusNote">…</div>
+            <div class="llm-profiles" id="llmProfiles"></div>
+            <div class="setting__actions">
+              <button class="btn btn--primary" id="btnOpenLlm" data-i18n="llm.reconfigure">添加模型</button>
+            </div>
+          </details>
+
+          <details class="setting">
+            <summary data-i18n="settings.voice">语音</summary>
+            <label class="setting__row">
+              <span data-i18n="settings.voice.mute">静音（关闭语音回复）</span>
+              <span class="switch"><input type="checkbox" id="setMute" /><i></i></span>
+            </label>
+            <label class="setting__row setting__row--col">
+              <span data-i18n="settings.voice.sub">字幕跟随语音显示</span>
+              <span class="switch"><input type="checkbox" id="setSubtitle" checked /><i></i></span>
+            </label>
+          </details>
+
+          <details class="setting">
+            <summary data-i18n="settings.display">显示</summary>
+            <label class="setting__row">
+              <span data-i18n="settings.display.petals">樱花飘落</span>
+              <span class="switch"><input type="checkbox" id="setPetals" checked /><i></i></span>
+            </label>
+            <label class="setting__row">
+              <span data-i18n="settings.display.eyes">视线跟随鼠标</span>
+              <span class="switch"><input type="checkbox" id="setEyes" checked /><i></i></span>
+            </label>
+          </details>
+
+          <details class="setting">
+            <summary data-i18n="settings.group">群组对谈</summary>
+            <div class="setting__note" id="groupNote"></div>
+            <ul class="group-list" id="groupList"></ul>
+            <label class="setting__row">
+              <input type="text" id="groupUidInput" placeholder="client_uid" class="input" />
+            </label>
+            <div class="setting__actions">
+              <button class="btn btn--ghost" id="btnGroupAdd" data-i18n="group.invite">邀请</button>
+              <button class="btn btn--ghost" id="btnGroupLeave" data-i18n="group.leave">退出群组</button>
+            </div>
+          </details>
+
+          <details class="setting">
+            <summary data-i18n="settings.conn">连接信息</summary>
+            <div class="setting__note" id="connInfo">…</div>
+          </details>
+        </div>
+      </aside>
+
+      <!-- 角色编辑器模态框 -->
+      <div class="modal-backdrop" id="charModalBackdrop" hidden>
+        <div class="modal glass" role="dialog" aria-modal="true" aria-label="Character editor">
+          <header class="modal__head">
+            <h2 class="modal__title" id="charModalTitle">新建角色</h2>
+            <button class="icon-btn" id="btnCharClose" aria-label="Close">
+              <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </header>
+          <div class="modal__body">
+            <label class="field">
+              <span data-i18n="char.name">显示名称 *</span>
+              <input type="text" id="fName" class="input" placeholder="小夜" />
+            </label>
+            <label class="field">
+              <span data-i18n="char.slug">文件标识（slug，可留空）</span>
+              <input type="text" id="fSlug" class="input" placeholder="sayo" />
+            </label>
+            <label class="field">
+              <span data-i18n="char.skin">Live2D 形象 *</span>
+              <select id="fSkin" class="input"></select>
+            </label>
+            <label class="field">
+              <span data-i18n="char.voice">语音（edge-tts）</span>
+              <input type="text" id="fVoiceFilter" class="input" data-i18n-placeholder="char.voice.filter" placeholder="搜索语音，如 zh-TW / Nanami…" />
+              <select id="fVoice" class="input"></select>
+            </label>
+            <label class="field">
+              <span data-i18n="char.avatar">头像</span>
+              <div class="field__avatar-row">
+                <img id="fAvatarPreview" class="avatar-preview" src="" alt="" hidden />
+                <button class="btn btn--ghost" id="btnAvatarPick" data-i18n="char.avatar.pick">选择图片</button>
+                <input type="file" id="fAvatarInput" accept=".jpg,.jpeg,.png,.gif,.svg" hidden />
+              </div>
+            </label>
+            <label class="field">
+              <span data-i18n="char.persona">人设提示词 *</span>
+              <textarea id="fPersona" class="input" rows="5" placeholder="你是一位…"></textarea>
+            </label>
+            <p class="modal__error" id="charFormError" hidden></p>
+          </div>
+          <footer class="modal__foot">
+            <button class="btn btn--ghost" id="btnCharCancel" data-i18n="common.cancel">取消</button>
+            <button class="btn btn--primary" id="btnCharSave" data-i18n="common.save">保存</button>
+          </footer>
+        </div>
+      </div>
+
+      <!-- LLM 设置向导 -->
+      <div class="modal-backdrop" id="llmModalBackdrop" hidden>
+        <div class="modal glass modal--wizard" role="dialog" aria-modal="true" aria-label="LLM setup wizard">
+          <header class="modal__head">
+            <h2 class="modal__title" data-i18n="llm.title">接入你的 AI「大脑」</h2>
+            <button class="icon-btn" id="btnLlmClose" aria-label="Close">
+              <svg viewBox="0 0 24 24" class="icon-btn__ic" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </header>
+          <div class="modal__body">
+            <p class="wizard__intro" data-i18n="llm.intro">Hana-Companion 是身体和脸，会思考的「大脑」由你提供。选一种方式接入：</p>
+
+            <section class="wizard__path">
+              <h3 data-i18n="llm.ollama.title">本地 Ollama（推荐 · 免费私密）</h3>
+              <div class="wizard__note" id="ollamaStatus">…</div>
+              <ul class="wizard__models" id="ollamaModelList"></ul>
+              <div class="wizard__progress" id="ollamaPullBox" hidden>
+                <div class="wizard__bar"><i id="ollamaPullBar"></i></div>
+                <span class="wizard__pct" id="ollamaPullPct"></span>
+              </div>
+              <div class="setting__actions">
+                <button class="btn btn--ghost" id="btnOllamaRefresh" data-i18n="llm.ollama.refresh">刷新</button>
+                <button class="btn btn--ghost" id="btnOllamaPull" data-i18n="llm.ollama.pull" hidden>下载推荐模型（约 1.9GB）</button>
+                <button class="btn btn--primary" id="btnUseOllama" data-i18n="llm.ollama.use" disabled>使用所选模型</button>
+              </div>
+            </section>
+
+            <section class="wizard__path">
+              <h3 data-i18n="llm.cloud.title">云端 API Key（需账号）</h3>
+              <div class="wizard__providers" id="providerChips"></div>
+              <label class="field" id="llmBaseUrlField" hidden>
+                <span data-i18n="llm.baseUrl">接口地址（base_url）</span>
+                <input type="text" id="llmBaseUrl" class="input" placeholder="https://…/v1" />
+              </label>
+              <label class="field">
+                <span data-i18n="llm.model">模型名</span>
+                <input type="text" id="llmModel" class="input" placeholder="gpt-4o-mini" />
+              </label>
+              <label class="field">
+                <span data-i18n="llm.key">API Key（仅保存到本机 conf.yaml）</span>
+                <input type="password" id="llmKey" class="input" placeholder="sk-…" autocomplete="off" />
+              </label>
+              <div class="setting__actions">
+                <button class="btn btn--primary" id="btnUseCloud" data-i18n="llm.cloud.save">测试并保存</button>
+              </div>
+            </section>
+            <p class="modal__error" id="llmError" hidden></p>
+          </div>
+          <footer class="modal__foot">
+            <span class="wizard__hint" data-i18n="llm.hotapply">保存后立即生效，无需重启。</span>
+            <button class="btn btn--ghost" id="btnLlmSkip" data-i18n="llm.skip">稍后再说</button>
+          </footer>
+        </div>
+      </div>
+
+      <!-- 聊天框模型快速切换弹层（页面级，fixed 定位避开聊天面板 overflow 裁剪） -->
+      <div class="chat-model-pop glass" id="chatModelPop" role="menu" aria-label="Model quick switch" hidden></div>
+
+      <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    </div>
+
+    <!-- Live2D / 渲染依赖（顺序敏感） -->
+    <script src="/libs/pixi.min.js"></script>
+    <script src="/libs/live2dcubismcore.min.js"></script>
+    <script src="/libs/pixi-live2d-display-cubism4.min.js"></script>
+    <script src="/app/app.js" type="module"></script>
+  </body>
+</html>
