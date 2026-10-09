@@ -15,6 +15,15 @@ from loguru import logger
 from src.open_llm_vtuber.server import WebSocketServer
 from src.open_llm_vtuber.config_manager import Config, read_yaml, validate_config
 
+# The desktop pet is an optional companion process (Electron, in desktop-pet/).
+# Import must never take the server down: it is guarded and every use is optional.
+pet_launcher = None
+_PET_IMPORT_ERROR = None
+try:
+    import pet_launcher
+except Exception as _e:  # pragma: no cover - defensive
+    _PET_IMPORT_ERROR = f"{type(_e).__name__}: {_e}"
+
 os.environ["HF_HOME"] = str(Path(__file__).parent / "models")
 os.environ["MODELSCOPE_CACHE"] = str(Path(__file__).parent / "models")
 
@@ -58,6 +67,11 @@ def parse_args():
         action="store_true",
         help="Open the app in the default browser once the server is actually ready",
     )
+    parser.add_argument(
+        "--no-pet",
+        action="store_true",
+        help="Do not start the desktop-pet window on launch",
+    )
     return parser.parse_args()
 
 
@@ -94,7 +108,7 @@ def _open_browser_when_ready(host: str, port: int, timeout: float = 600.0) -> No
 
 
 @logger.catch
-def run(console_log_level: str, open_browser: bool = False):
+def run(console_log_level: str, open_browser: bool = False, launch_pet: bool = True):
     init_logger(console_log_level)
     logger.info(f"Hana-Companion, version v{get_version()}")
 
@@ -126,6 +140,36 @@ def run(console_log_level: str, open_browser: bool = False):
     # Initialize the WebSocket server (synchronous part)
     server = WebSocketServer(config=config)
 
+    # Desktop pet control endpoints (additive: registered here, not inside src/).
+    if pet_launcher is not None:
+        try:
+            server.app.include_router(
+                pet_launcher.init_pet_route(
+                    server_config.port,
+                    # Read-only view of the live sessions, so the pet can mirror
+                    # the character the web client is using (never written to).
+                    lambda: getattr(server.ws_handler, "client_contexts", None),
+                )
+            )
+            # The frontend is mounted at the root as a catch-all, and Starlette
+            # matches routes in registration order — so the mount has to stay
+            # last, otherwise every endpoint added after it answers 404.
+            routes = server.app.routes
+            frontend_mount = next(
+                (r for r in routes if getattr(r, "name", None) == "frontend"), None
+            )
+            if frontend_mount is not None:
+                routes.remove(frontend_mount)
+                routes.append(frontend_mount)
+            logger.info(
+                "Desktop pet endpoints: /api/pet, /api/pet/skins, "
+                "/api/pet/web-character"
+            )
+        except Exception as e:
+            logger.warning(f"Pet endpoints unavailable ({type(e).__name__}: {e})")
+    elif launch_pet:
+        logger.warning(f"Pet module unavailable ({_PET_IMPORT_ERROR})")
+
     # Perform asynchronous initialization (loading context, etc.)
     logger.info("Initializing server context...")
     try:
@@ -145,6 +189,24 @@ def run(console_log_level: str, open_browser: bool = False):
             args=(server_config.host, server_config.port),
             daemon=True,
         ).start()
+
+    # Show the desktop pet as soon as the project is running (settings.json can
+    # turn this off, --no-pet skips it for this run only). The thread waits for
+    # the port, so the window never loads against a server that is still booting.
+    if launch_pet and pet_launcher is not None:
+        if pet_launcher.read_settings()["autoShow"]:
+            pet_launcher.write_settings({"visible": True})
+            atexit.register(pet_launcher.terminate_pet)
+            threading.Thread(
+                target=pet_launcher.launch_when_ready,
+                args=(server_config.port,),
+                daemon=True,
+            ).start()
+        else:
+            logger.info(
+                "Desktop pet auto-start is off (desktop-pet/settings.json: "
+                "autoShow=false). Turn it on in Settings > 桌宠."
+            )
 
     # Run the Uvicorn server
     logger.info(f"Starting server on {server_config.host}:{server_config.port}")
@@ -167,4 +229,8 @@ if __name__ == "__main__":
         )
     if args.hf_mirror:
         os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-    run(console_log_level=console_log_level, open_browser=args.open_browser)
+    run(
+        console_log_level=console_log_level,
+        open_browser=args.open_browser,
+        launch_pet=not args.no_pet,
+    )

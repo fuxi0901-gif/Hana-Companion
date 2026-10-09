@@ -47,7 +47,7 @@
 
 ## スクリーンショット
 
-![Hana-Companion — あなたの Live2D AI コンパニオンが実際に動いているところ](assets/hana-companion-hero.png)
+![Hana-Companion — あなたの Live2D AI コンパニオンが実際に動いているところ](assets/hero-ja.png)
 
 *デスクトップで動く Hana-Companion：本当に会話できる Live2D アバター。*
 
@@ -71,7 +71,7 @@
    - 初回起動では、すべて（まず `uv`、続いて依存関係）が自動でインストールされ、数分かかることがあります。**その窓は閉じないでください — それがサーバー本体です。**
 3. ブラウザが自動で **http://localhost:12393** を開きます。初回は **セットアップウィザード** が表示されます。**API キーを貼り付ける**（OpenAI / Claude / Gemini / Zhipu / DeepSeek / Groq / Cerebras、または任意の OpenAI 互換エンドポイント）か、**ローカルの Ollama モデルを選ぶ** かのどちらかです — ウィザードはおすすめモデルのダウンロードも代行できます。保存する前に軽いテスト呼び出しを実行します。
 
-   ![Hana-Companion 初回起動時のセットアップウィザード](assets/hana-companion-setup.png)
+   ![Hana-Companion 初回起動時のセットアップウィザード](assets/setup-ja.png)
 
    *初回起動時のセットアップウィザード。ここで AI の「頭脳」を差し込みます。*
 

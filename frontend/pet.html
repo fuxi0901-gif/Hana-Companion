@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hana 桌宠</title>
+<!-- 与 index.html 相同的 vendored 库，脚本顺序敏感 -->
+<script src="/libs/pixi.min.js"></script>
+<script src="/libs/live2dcubismcore.min.js"></script>
+<script src="/libs/pixi-live2d-display-cubism4.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: transparent;
+    overflow: hidden;
+    user-select: none;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  #stage-canvas { position: fixed; inset: 0; z-index: 0; }
+
+  /* 对话气泡：悬在角色头顶 */
+  #bubble {
+    position: fixed; z-index: 10;
+    left: 4px; right: 4px; top: 6px;
+    max-height: 34vh; overflow: hidden;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(244, 143, 177, 0.55);
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+    padding: 8px 10px;
+    font-size: 13px; line-height: 1.45; color: #4a2b3a;
+    word-break: break-word;
+    opacity: 0; transform: translateY(-6px);
+    transition: opacity .22s, transform .22s;
+    pointer-events: none;
+  }
+  #bubble.show { opacity: 1; transform: none; }
+  #bubble .who {
+    font-size: 11px; font-weight: 600; color: #e06a94;
+    margin-bottom: 3px; display: flex; justify-content: space-between;
+  }
+  #bubble .state-tag { color: #9a7b8a; font-weight: 400; }
+  #bubble.error { border-color: #e07a7a; color: #8c2f2f; }
+  #bubble.me { background: rgba(224, 240, 255, 0.95); border-color: rgba(120, 170, 230, 0.6); }
+  #bubble .lines > div + div { margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(0,0,0,.08); }
+
+  /* 底部输入行 */
+  #input-row {
+    position: fixed; z-index: 11;
+    left: 4px; right: 4px; bottom: 4px;
+    display: none; gap: 6px;
+  }
+  #input-row.open { display: flex; }
+  #textInput {
+    flex: 1; min-width: 0;
+    border: 1px solid rgba(244, 143, 177, 0.7);
+    border-radius: 10px; padding: 6px 10px;
+    font-size: 13px; outline: none;
+    background: rgba(255, 255, 255, 0.95);
+  }
+  #textInput:focus { border-color: #e06a94; }
+  .pbtn {
+    border: none; border-radius: 10px;
+    padding: 6px 10px; font-size: 13px; cursor: pointer;
+    background: #f4c0d3; color: #4a2b3a; white-space: nowrap;
+  }
+  .pbtn:hover { background: #ef9fc0; }
+  .pbtn.mic-hold { background: #7ecb92; }
+  .pbtn.close { background: #ddd; }
+
+  /* 名字牌 */
+  #nameTag {
+    position: fixed; z-index: 9;
+    left: 50%; bottom: 8px; transform: translateX(-50%);
+    background: rgba(74, 43, 58, 0.75); color: #fff;
+    font-size: 12px; padding: 3px 12px; border-radius: 20px;
+    opacity: 0; transition: opacity .3s; pointer-events: none;
+    max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #nameTag.show { opacity: 1; }
+</style>
+</head>
+<body>
+<canvas id="stage-canvas"></canvas>
+
+<div id="bubble" aria-live="polite">
+  <div class="who"><span id="bubbleWho">Hana</span><span class="state-tag" id="bubbleState"></span></div>
+  <div class="lines" id="bubbleLines"></div>
+</div>
+
+<div id="input-row">
+  <input id="textInput" type="text" placeholder="和我说点什么…（Enter 发送）" />
+  <button class="pbtn mic-hold" id="btnMic" title="按住说话，松开发送">🎤</button>
+  <button class="pbtn" id="btnSend">发送</button>
+  <button class="pbtn close" id="btnCloseInput">✕</button>
+</div>
+
+<div id="nameTag"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Hana 桌宠渲染层 — 仅使用后端已有 /client-ws 协议，
+   不修改网页版 (index.html / app.js) 的任何行为。
+   ============================================================ */
+const $ = (s) => document.querySelector(s);
+const bubbleEl = $("#bubble"), linesEl = $("#bubbleLines"), whoEl = $("#bubbleWho"),
+      stateEl = $("#bubbleState"), nameTagEl = $("#nameTag");
+const pet = window.hanaPet || null; // Electron preload 注入；浏览器直开时为 null
+
+const state = {
+  connected: false, speaking: false, thinking: false, muted: false,
+  heardText: "", modelInfo: null, confName: "", clientUid: "",
+  modelScale: 1, dragging: false,
+};
+
+/* ---------------- 气泡 ---------------- */
+let bubbleHideTimer = null;
+function bubble(text, opts = {}) {
+  clearTimeout(bubbleHideTimer);
+  bubbleEl.classList.remove("error", "me");
+  if (opts.cls) bubbleEl.classList.add(opts.cls);
+  whoEl.textContent = opts.who || state.confName || "Hana";
+  if (opts.replace) linesEl.innerHTML = "";
+  const div = document.createElement("div");
+  div.textContent = text;
+  linesEl.appendChild(div);
+  while (linesEl.children.length > 4) linesEl.removeChild(linesEl.firstChild);
+  bubbleEl.classList.add("show");
+  if (opts.autoHide !== false) {
+    bubbleHideTimer = setTimeout(() => bubbleEl.classList.remove("show"),
+      Math.max(3200, (text || "").length * 130));
+  }
+}
+function bubbleState(tag) { stateEl.textContent = tag || ""; }
+function hideBubble() { bubbleEl.classList.remove("show"); }
+
+function showNameTag() {
+  if (!state.confName) return;
+  nameTagEl.textContent = state.confName;
+  nameTagEl.classList.add("show");
+  clearTimeout(showNameTag._t);
+  showNameTag._t = setTimeout(() => nameTagEl.classList.remove("show"), 2500);
+}
+
+/* ---------------- WebSocket ---------------- */
+let ws = null, wsRetry = 1000, heartbeatTimer = null, pendingConfig = null;
+function connectWS() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/client-ws`);
+  ws.onopen = () => {
+    state.connected = true; wsRetry = 1000;
+    bubbleState("已连接");
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(() => wsSend({ type: "heartbeat" }), 25000);
+    if (pendingConfig) { const f = pendingConfig; pendingConfig = null; wsSend({ type: "switch-config", file: f }); }
+  };
+  ws.onmessage = (e) => {
+    try { routeMessage(JSON.parse(e.data)); } catch (err) { console.error(err); }
+  };
+  ws.onclose = () => {
+    state.connected = false;
+    clearInterval(heartbeatTimer);
+    bubbleState("重连中…");
+    stopAllAudio();
+    setTimeout(connectWS, wsRetry);
+    wsRetry = Math.min(wsRetry * 2, 10000);
+  };
+  ws.onerror = () => { try { ws.close(); } catch {} };
+}
+function wsSend(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+let backendSynthDone = false;
+function routeMessage(p) {
+  switch (p.type) {
+    case "set-model-and-conf":
+      state.confName = p.conf_name || "";
+      // Only the hello message carries client_uid; the reply to a
+      // switch-config does not, so never clear what we already learned.
+      if (p.client_uid) state.clientUid = p.client_uid;
+      whoEl.textContent = state.confName || "Hana";
+      lastModelInfo = p.model_info;
+      if (modelOverride && !Object.keys(skinsByName).length) {
+        refreshSkins().then(() => loadLive2DModel(resolveModel(lastModelInfo)));
+      } else {
+        loadLive2DModel(resolveModel(lastModelInfo));
+      }
+      break;
+    case "audio":
+      enqueueAudio(p);
+      break;
+    case "control":
+      onControl(p.text);
+      break;
+    case "full-text":
+      if (p.text === "Thinking..." || p.text === "AI wants to speak something...") {
+        setThinking(true);
+      } else if (p.text && p.text !== "Connection established") {
+        bubble(p.text, { who: "系统" });
+      }
+      break;
+    case "user-input-transcription":
+      bubble(p.text, { who: "我", cls: "me" });
+      setThinking(true);
+      break;
+    case "backend-synth-complete":
+      backendSynthDone = true;
+      maybePlaybackComplete();
+      break;
+    case "force-new-message":
+      break;
+    case "config-switched":
+      bubble("已切换角色：" + (state.confName || ""), { who: "系统" });
+      break;
+    case "error":
+      setThinking(false);
+      bubble(p.message || "发生错误", { cls: "error", who: "错误" });
+      break;
+    case "tool_call_status":
+      if (p.status === "running") { setThinking(true); bubbleState("工具：" + (p.tool_name || "")); }
+      break;
+    case "heartbeat-ack":
+    case "group-update":
+    default:
+      break;
+  }
+}
+
+function onControl(text) {
+  switch (text) {
+    case "conversation-chain-start":
+      state.heardText = "";
+      backendSynthDone = false;
+      setThinking(true);
+      break;
+    case "conversation-chain-end":
+      setThinking(false);
+      maybePlaybackComplete();
+      break;
+    case "interrupt":           // 服务端 VAD 检测到用户插话
+      stopAllAudio();
+      setThinking(false);
+      break;
+    case "mic-audio-end":       // VAD 模式提示说完了
+      break;
+    default:
+      break;
+  }
+}
+
+function setThinking(on) {
+  state.thinking = on;
+  if (on) { bubbleState("思考中…"); }
+  else if (!state.speaking) { bubbleState(state.connected ? "" : "重连中…"); }
+}
+
+/* 播放队列排空后回给后端 frontend-playback-complete，释放会话链 */
+function maybePlaybackComplete() {
+  if (backendSynthDone && !state.speaking && audioQueue.length === 0 && !playingSource) {
+    backendSynthDone = false;
+    wsSend({ type: "frontend-playback-complete" });
+  }
+}
+
+/* ---------------- Live2D 渲染 ---------------- */
+let pixiApp = null, live2dModel = null, modelUrl = null, mouthVolume = 0, layoutFrame = 0;
+let lastModelInfo = null, modelOverride = "", skinsByName = {};
+
+/* 桌宠专属形象：只替换本地渲染用的模型，聊天人设仍由后端角色配置决定 */
+async function refreshSkins() {
+  try {
+    const res = await fetch("/api/pet/skins");
+    const j = await res.json();
+    skinsByName = {};
+    (j.skins || []).forEach((m) => { if (m && m.name) skinsByName[m.name] = m; });
+  } catch { /* 后端未就绪，稍后会随 set-model-and-conf 再试 */ }
+}
+
+function resolveModel(info) {
+  if (modelOverride && skinsByName[modelOverride]) return skinsByName[modelOverride];
+  return info;
+}
+
+function applyModelOverride(name) {
+  modelOverride = name || "";
+  if (!lastModelInfo) return;
+  if (modelOverride && !skinsByName[modelOverride]) refreshSkins().then(() => loadLive2DModel(resolveModel(lastModelInfo)));
+  else loadLive2DModel(resolveModel(lastModelInfo));
+}
+
+function initPixi() {
+  const forceRes = /[?&]res1=1/.test(location.search) ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+  pixiApp = new PIXI.Application({
+    view: $("#stage-canvas"),
+    backgroundAlpha: 0,
+    autoDensity: true,
+    resolution: forceRes,
+    resizeTo: window,
+  });
+  window.addEventListener("resize", () => { layoutModel(); layoutFrame = 1; });
+  if (/[?&]debug=1/.test(location.search)) {
+    window.__dbgG = new PIXI.Graphics();
+    pixiApp.stage.addChild(window.__dbgG);
+  }
+}
+
+async function loadLive2DModel(modelInfo) {
+  if (!modelInfo || !modelInfo.url || !window.PIXI?.live2d) return;
+  if (modelUrl === modelInfo.url && live2dModel) { layoutModel(); return; }
+  modelUrl = modelInfo.url;
+  state.modelInfo = modelInfo;
+  try {
+    const model = await PIXI.live2d.Live2DModel.from(modelInfo.url);
+    if (live2dModel) { pixiApp.stage.removeChild(live2dModel); live2dModel.destroy(); }
+    live2dModel = model;
+    pixiApp.stage.addChild(model);
+    layoutFrame = 1;
+    model.internalModel.on("beforeModelUpdate", onBeforeModelUpdate);
+    model.on("hit", onModelHit);
+    layoutModel();
+    // 进场先放一段待机动作，让桌宠"活"起来
+    const idle = (modelInfo.idleMotionGroupName || "").split(",")[0].trim();
+    if (idle) { try { model.motion(idle); } catch {} }
+  } catch (err) {
+    console.error("[pet] Live2D load failed:", err);
+    bubble("模型加载失败：" + (modelInfo.name || ""), { cls: "error", who: "错误" });
+  }
+}
+
+function layoutModel() {
+  if (!live2dModel || !pixiApp) return;
+  const W = pixiApp.renderer.width / pixiApp.renderer.resolution;
+  const H = pixiApp.renderer.height / pixiApp.renderer.resolution;
+  const b = live2dModel.getLocalBounds();
+  if (!isFinite(b.width) || b.width <= 0 || !isFinite(b.height) || b.height <= 0) return;
+  const s = Math.min((H * 0.94) / b.height, (W * 0.92) / b.width) * (state.modelScale || 1);
+  live2dModel.scale.set(s);
+  live2dModel.x = W / 2 - (b.x + b.width / 2) * s;
+  live2dModel.y = H * 0.995 - (b.y + b.height) * s; // 脚底贴住窗口下沿
+}
+
+function onBeforeModelUpdate() {
+  const cm = live2dModel.internalModel.coreModel;
+  if (mouthVolume > 0) {
+    cm.addParameterValueById("ParamMouthOpenY", mouthVolume);
+    cm.addParameterValueById("ParamA", mouthVolume);
+    cm.addParameterValueById("ParamMouthOpen", mouthVolume);
+  }
+  if (layoutFrame > 0 && ++layoutFrame === 6) { layoutModel(); layoutFrame = 0; }
+}
+
+let suppressHitUntil = 0;
+function onModelHit() {
+  if (performance.now() < suppressHitUntil) return; // 刚拖拽完，不算点击
+  showNameTag();
+  const taps = (state.modelInfo && state.modelInfo.tapMotions) || {};
+  for (const key of Object.keys(taps)) {
+    const g = taps[key];
+    for (const groupName of Object.keys(g)) {
+      try { live2dModel.motion(groupName, g[groupName]); } catch {}
+      return;
+    }
+  }
+}
+
+function applyActions(actions) {
+  const exprs = actions && Array.isArray(actions.expressions) ? actions.expressions : null;
+  if (live2dModel && exprs && exprs.length) {
+    try { live2dModel.expression(exprs[0]); } catch {}
+  }
+}
+
+/* ---------------- 音频播放 + 口型 ---------------- */
+let audioCtx = null;
+const audioQueue = [];
+let playingSource = null, playStartAt = 0, playVolumes = [], playSliceMs = 20,
+    playRaf = 0, playEndResolve = null;
+
+function ensureAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+["pointerdown", "keydown"].forEach((ev) =>
+  window.addEventListener(ev, () => { if (audioCtx) ensureAudioCtx(); }, { passive: true }));
+
+function base64ToArrayBuffer(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function enqueueAudio(payload) {
+  audioQueue.push(payload);
+  if (!state.speaking) playNextAudio();
+}
+
+function playNextAudio() {
+  const p = audioQueue.shift();
+  if (!p) {
+    state.speaking = false;
+    bubbleState(state.thinking ? "思考中…" : "");
+    maybePlaybackComplete();
+    return;
+  }
+  state.speaking = true;
+  setThinking(false);
+  bubbleState("说话中");
+
+  const display = p.display_text || {};
+  const text = display.text || "";
+  if (text) {
+    state.heardText += (state.heardText ? " " : "") + text;
+    bubble(text, { who: display.name || state.confName || "Hana", autoHide: false });
+  }
+  applyActions(p.actions);
+
+  const canPlay = p.audio && !state.muted;
+  if (canPlay) {
+    playAudioPayload(p).then(() => playNextAudio());
+  } else {
+    setTimeout(() => playNextAudio(), Math.min(1200, 300 + text.length * 40));
+  }
+}
+
+function playAudioPayload(p) {
+  const ctx = ensureAudioCtx();
+  let audioBuffer;
+  try {
+    audioBuffer = ctx.decodeAudioData(base64ToArrayBuffer(p.audio));
+  } catch (err) {
+    console.error("[pet] decode audio failed", err);
+    return Promise.resolve();
+  }
+  playVolumes = p.volumes || [];
+  playSliceMs = p.slice_length || 20;
+
+  return new Promise((resolve) => {
+    const src = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    gain.gain.value = 1;
+    src.buffer = audioBuffer;
+    src.connect(gain).connect(ctx.destination);
+    playingSource = src;
+    playStartAt = performance.now();
+    playEndResolve = resolve;
+
+    const tick = () => {
+      if (!playingSource) return;
+      const idx = Math.floor((performance.now() - playStartAt) / playSliceMs);
+      mouthVolume = playVolumes.length ? (playVolumes[idx] ?? 0) : 0;
+      playRaf = requestAnimationFrame(tick);
+    };
+    playRaf = requestAnimationFrame(tick);
+
+    src.onended = () => {
+      if (playEndResolve !== resolve) return;
+      cleanupPlayback();
+      resolve();
+    };
+    src.start();
+  });
+}
+
+function cleanupPlayback() {
+  cancelAnimationFrame(playRaf);
+  playRaf = 0;
+  playingSource = null;
+  playEndResolve = null;
+  mouthVolume = 0;
+}
+
+function stopAllAudio() {
+  audioQueue.length = 0;
+  if (playingSource) {
+    const s = playingSource;
+    const settle = playEndResolve;
+    cleanupPlayback();
+    try { s.stop(); } catch {}
+    if (settle) settle();
+  }
+  state.speaking = false;
+}
+
+function interruptIfSpeaking() {
+  if (!state.speaking) return;
+  wsSend({ type: "interrupt-signal", text: state.heardText });
+  stopAllAudio();
+}
+
+/* ---------------- 麦克风（按住说话，16kHz float，与网页版一致） ---------------- */
+let micStream = null, micCtx = null, micProc = null, micActive = false;
+
+function downsample(buffer, fromRate, toRate) {
+  if (fromRate === toRate) return buffer;
+  const ratio = fromRate / toRate;
+  const outLen = Math.floor(buffer.length / ratio);
+  const result = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const start = Math.floor(i * ratio);
+    const end = Math.min(Math.floor((i + 1) * ratio), buffer.length);
+    let sum = 0;
+    for (let j = start; j < end; j++) sum += buffer[j];
+    result[i] = sum / Math.max(end - start, 1);
+  }
+  return result;
+}
+
+async function startMic() {
+  if (micActive) return;
+  if (!state.connected) { bubble("后端未连接", { cls: "error", who: "错误" }); return; }
+  interruptIfSpeaking();
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    });
+  } catch {
+    bubble("麦克风权限被拒绝", { cls: "error", who: "错误" });
+    return;
+  }
+  micActive = true;
+  micCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = micCtx.createMediaStreamSource(micStream);
+  micProc = micCtx.createScriptProcessor(4096, 1, 1);
+  const muteGain = micCtx.createGain();
+  muteGain.gain.value = 0;
+  micProc.onaudioprocess = (e) => {
+    if (!micActive) return;
+    const out = downsample(e.inputBuffer.getChannelData(0), micCtx.sampleRate, 16000);
+    wsSend({ type: "mic-audio-data", audio: Array.from(out) });
+  };
+  src.connect(micProc);
+  micProc.connect(muteGain);
+  muteGain.connect(micCtx.destination);
+  bubbleState("聆听中…按住🎤");
+}
+
+function stopMic() {
+  if (!micActive) return;
+  micActive = false;
+  try { micProc && micProc.disconnect(); } catch {}
+  try { micStream && micStream.getTracks().forEach((t) => t.stop()); } catch {}
+  try { micCtx && micCtx.close(); } catch {}
+  micProc = null; micStream = null; micCtx = null;
+  wsSend({ type: "mic-audio-end" });
+  setThinking(true);
+}
+
+/* ---------------- 输入行 / 文字对话 ---------------- */
+const inputRow = $("#input-row"), textInput = $("#textInput");
+let inputOpenForDrag = false;
+function openInput() {
+  inputRow.classList.add("open");
+  textInput.focus();
+}
+function closeInput() {
+  inputRow.classList.remove("open");
+  textInput.value = "";
+}
+function sendText() {
+  const text = textInput.value.trim();
+  if (!text) return;
+  if (!state.connected) { bubble("后端未连接", { cls: "error", who: "错误" }); return; }
+  interruptIfSpeaking();
+  wsSend({ type: "text-input", text });
+  bubble(text, { who: "我", cls: "me" });
+  setThinking(true);
+  textInput.value = "";
+}
+$("#btnSend").addEventListener("click", sendText);
+$("#btnCloseInput").addEventListener("click", closeInput);
+textInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); sendText(); }
+  if (e.key === "Escape") closeInput();
+  e.stopPropagation();
+});
+
+const btnMic = $("#btnMic");
+btnMic.addEventListener("pointerdown", (e) => { e.preventDefault(); startMic(); });
+btnMic.addEventListener("pointerup", () => stopMic());
+btnMic.addEventListener("pointercancel", () => stopMic());
+btnMic.addEventListener("contextmenu", (e) => e.preventDefault());
+
+/* 空格 = 按住说话（输入框打开时让位给打字） */
+let spaceHeld = false;
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && !textInput.disabled && document.activeElement !== textInput) {
+    e.preventDefault();
+    if (!spaceHeld) { spaceHeld = true; startMic(); }
+  }
+});
+window.addEventListener("keyup", (e) => {
+  if (e.code === "Space" && spaceHeld) { spaceHeld = false; stopMic(); }
+});
+
+/* ---------------- 拖拽移动窗口 / 右键菜单 ---------------- */
+const DRAG_THRESHOLD = 4;
+let press = null;
+window.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  if (e.target.closest("#input-row")) return;
+  press = { x: e.clientX, y: e.clientY, moved: false };
+  if (pet) pet.onDragStart(e.screenX, e.screenY);
+});
+window.addEventListener("pointermove", (e) => {
+  if (!press) return;
+  const dx = e.clientX - press.x, dy = e.clientY - press.y;
+  if (!press.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) press.moved = true;
+  if (press.moved && pet) pet.onDragMove(e.screenX, e.screenY);
+});
+window.addEventListener("pointerup", (e) => {
+  if (!press) return;
+  if (press.moved) {
+    suppressHitUntil = performance.now() + 250;
+    if (pet) pet.onDragEnd();
+  }
+  press = null;
+});
+window.addEventListener("dblclick", (e) => {
+  if (e.target.closest("#input-row")) return;
+  openInput();
+});
+window.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  if (pet) pet.requestContextMenu();
+  else bubble("右键菜单仅在桌宠窗口(Electron)中可用", { who: "提示" });
+});
+
+/* 角色 / 形象切换（来自主进程的右键菜单、桌宠设置或网页角色同步） */
+let requestedConfig = "conf.yaml";
+function requestConfig(file) {
+  if (!file) return;
+  requestedConfig = file;
+  if (ws && ws.readyState === WebSocket.OPEN) wsSend({ type: "switch-config", file });
+  else pendingConfig = file; // 连接建立后补发
+}
+
+/* 跟随网页角色：网页版换了人物，桌宠同步换（形象、性格、记忆都来自同一份角色
+   配置）。服务端只读地报告各会话当前使用的角色文件，exclude 传桌宠自己的
+   client_uid；只有两边不一致才补发 switch-config，并对已发出的请求去重，避免
+   轮询期间反复重载模型。跟随结果写回 settings.json，让「桌宠当前角色」始终为真。
+   比较用签名而不只是文件名：改人设或换形象可能只动内容不换文件。 */
+let followedSig = "", reportedUid = "";
+const charSignature = (c) =>
+  c ? `${c.filename || ""}|${c.conf_name || ""}|${c.live2d_model_name || ""}` : "";
+function patchPetSettings(body) {
+  fetch("/api/pet/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  }).catch(() => {});
+}
+async function pollWebCharacter() {
+  if (state.clientUid && reportedUid !== state.clientUid) {
+    reportedUid = state.clientUid;
+    // Let the panel-side calls exclude us even without ?exclude=.
+    patchPetSettings({ petUid: state.clientUid });
+  }
+  // Without our own uid the endpoint still falls back to settings.petUid.
+  const q = state.clientUid ? `?exclude=${encodeURIComponent(state.clientUid)}` : "";
+  try {
+    const r = await fetch(`/api/pet/web-character${q}`, { cache: "no-store" });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.following || !d.web || !d.web.filename) return;
+    const file = d.web.filename;
+    // 跟随网页时形象也必须由网页的角色决定：固定的桌宠形象会让人格换了、
+    // 人物却还画着旧的，看上去就是「没有同步」。
+    if (modelOverride) {
+      modelOverride = "";
+      if (lastModelInfo) loadLive2DModel(resolveModel(lastModelInfo));
+      patchPetSettings({ model: "" }); // keep settings.json honest about what shows
+    }
+    const webSig = charSignature(d.web);
+    if (charSignature(d.mine) === webSig) {
+      followedSig = "";
+      if (requestedConfig !== file) {
+        requestedConfig = file;
+        patchPetSettings({ character: file });
+      }
+      return;
+    }
+    if (webSig === followedSig) return; // 已请求，等服务端应用
+    followedSig = webSig;
+    requestConfig(file);
+    patchPetSettings({ character: file });
+  } catch {
+    /* 后端未就绪，下一轮再试 */
+  }
+}
+setInterval(pollWebCharacter, 2000);
+
+refreshSkins();
+if (pet) {
+  pet.onSwitchConfig(requestConfig);
+  pet.onSwitchModel(applyModelOverride);
+  pet.ready();
+}
+
+/* 调试钩子：?mute=1 静音、?say=文本 连接后自动发送（联调用）、?debug=1 布局信息、
+   ?model=名称 只换桌宠形象（与设定面板写的是同一个值） */
+if (/[?&]mute=1/.test(location.search)) state.muted = true;
+const _qModel = (location.search.match(/[?&]model=([^&]+)/) || [])[1];
+if (_qModel) applyModelOverride(decodeURIComponent(_qModel));
+if (/[?&]debug=1/.test(location.search)) {
+  const d = document.createElement("div");
+  d.id = "debugHud";
+  d.style.cssText = "position:fixed;left:2px;top:2px;z-index:99;font:11px monospace;color:#0f0;background:rgba(0,0,0,.85);padding:4px 6px;pointer-events:none;white-space:pre";
+  document.body.appendChild(d);
+  setInterval(() => {
+    const W = innerWidth, H = innerHeight;
+    let m = "no-model";
+    if (live2dModel) {
+      const b = live2dModel.getLocalBounds();
+      const gb = live2dModel.getBounds();
+      const im = live2dModel.internalModel || {};
+      const tf = im.localTransform || {};
+      const mm = im.matrix || {};
+      m = `pos=${live2dModel.x.toFixed(0)},${live2dModel.y.toFixed(0)} s=${live2dModel.scale.x.toFixed(3)}\nglb=${gb.x.toFixed(0)},${gb.y.toFixed(0)},${gb.width.toFixed(0)},${gb.height.toFixed(0)}\nmw=${im.width} mh=${im.height} pivot=${live2dModel.pivot?.x?.toFixed(0)},${live2dModel.pivot?.y?.toFixed(0)}\nmtx=(${mm.a?.toFixed(3)},${mm.b?.toFixed(3)},${mm.c?.toFixed(3)},${mm.d?.toFixed(3)},${mm.tx?.toFixed(0)},${mm.ty?.toFixed(0)})\nlt=(${tf.a?.toFixed(3)},${tf.tx?.toFixed(0)},${tf.ty?.toFixed(0)}) wt=(${live2dModel.worldTransform.a?.toFixed(3)},${live2dModel.worldTransform.tx?.toFixed(0)},${live2dModel.worldTransform.ty?.toFixed(0)})`;
+    }
+    d.textContent = `win=${W}x${H}\n${m}\nws=${state.connected ? "on" : "off"} sp=${state.speaking}`;
+    const g = window.__dbgG;
+    if (g && live2dModel) {
+      const lt = live2dModel.internalModel.localTransform;
+      const gb = live2dModel.getBounds();
+      g.clear();
+      g.lineStyle(2, 0x00ff00);
+      g.drawRect(gb.x, gb.y, gb.width, gb.height);
+      if (lt) {
+        const b = live2dModel.getLocalBounds();
+        const wt = live2dModel.worldTransform;
+        const q = (x, y) => { const p1 = lt.apply(new PIXI.Point(x, y)); return wt.apply(p1); };
+        const p0 = q(b.x, b.y), p1 = q(b.x + b.width, b.y + b.height);
+        g.lineStyle(2, 0xffff00);
+        g.drawRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
+      }
+      g.lineStyle(2, 0xff0000);
+      g.drawCircle(live2dModel.x, live2dModel.y, 6);
+      // reference squares at known stage coords (top-left / center / bottom-right)
+      g.beginFill(0xff0000, 0.9); g.drawRect(0, 0, 24, 24); g.endFill();
+      g.beginFill(0x0000ff, 0.9); g.drawRect(W / 2 - 12, H / 2 - 12, 24, 24); g.endFill();
+      g.beginFill(0x00ffff, 0.9); g.drawRect(W - 24, H - 24, 24, 24); g.endFill();
+    }
+  }, 500);
+}
+const autoSay = new URLSearchParams(location.search).get("say");
+if (autoSay) setTimeout(() => wsSend({ type: "text-input", text: autoSay }), 2500);
+
+initPixi();
+connectWS();
+</script>
+</body>
+</html>

@@ -47,7 +47,7 @@ It is a **friendly re-packaging** of the excellent [Open-LLM-VTuber](https://git
 
 ## Screenshots
 
-![Hana-Companion — your Live2D AI companion in action](assets/hana-companion-hero.png)
+![Hana-Companion — your Live2D AI companion in action](assets/hero-en.png)
 
 *Hana-Companion running on the desktop: a Live2D avatar you actually talk to.*
 
@@ -71,7 +71,7 @@ The easy path — **no terminal needed.**
    - The first launch installs everything (`uv`, then dependencies) and can take a few minutes. **Leave that window open — it's the server.**
 3. Your browser opens to **http://localhost:12393**. On first run a **setup wizard** appears: either **paste an API key** (OpenAI / Claude / Gemini / Zhipu / DeepSeek / Groq / Cerebras, or any custom OpenAI-compatible endpoint) **or** **pick a local Ollama model** — the wizard can even download the recommended one for you. It runs a quick test call before saving.
 
-   ![Hana-Companion first-run setup wizard](assets/hana-companion-setup.png)
+   ![Hana-Companion first-run setup wizard](assets/setup-en.png)
 
    *The first-run setup wizard, where you plug in your AI "brain".*
 
@@ -317,7 +317,7 @@ Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before starting anything large — i
 
 ## 截圖
 
-![Hana-Companion — 你的 Live2D AI 陪伴實際運作畫面](assets/hana-companion-hero.png)
+![Hana-Companion — 你的 Live2D AI 陪伴實際運作畫面](assets/hero-zh-TW.png)
 
 *Hana-Companion 在桌面上運作：一個你真的會去聊天的 Live2D 角色。*
 
@@ -339,7 +339,7 @@ Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before starting anything large — i
    - 第一次啟動會自動安裝所有東西（先 `uv`，再相依套件），可能要幾分鐘。**那個視窗別關，它就是伺服器本體。**
 3. 瀏覽器會自動開到 **http://localhost:12393**。第一次會出現**設定精靈**：**貼上 API key**（OpenAI／Claude／Gemini／智譜／DeepSeek／Groq／Cerebras，或任何自訂 OpenAI 相容端點），**或**選一個本地 **Ollama 模型** —— 精靈甚至能幫你下載推薦的模型。存檔前會先做一次快速測試呼叫。
 
-   ![Hana-Companion 首次啟動設定精靈](assets/hana-companion-setup.png)
+   ![Hana-Companion 首次啟動設定精靈](assets/setup-zh-TW.png)
 
    *首次啟動的設定精靈，在這裡接上你的 AI「大腦」。*
 

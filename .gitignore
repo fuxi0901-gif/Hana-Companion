@@ -85,3 +85,9 @@ conf.yaml.bak
 prompts/utils/proactive_topics.json
 prompts/utils/seen_news.json
 prompts/utils/proactive_speak_prompt.txt
+
+# desktop pet (Electron) build artifacts
+desktop-pet/node_modules/
+desktop-pet/package-lock.json
+desktop-pet/settings.json
+desktop-pet/pet.lock

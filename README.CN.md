@@ -47,7 +47,7 @@
 
 ## 截图
 
-![Hana-Companion —— 运行中的 Live2D AI 伙伴](assets/hana-companion-hero.png)
+![Hana-Companion —— 运行中的 Live2D AI 伙伴](assets/hero-zh.png)
 
 *Hana-Companion 在桌面上运行：一个你真的会去聊天的 Live2D 形象。*
 
@@ -71,7 +71,7 @@
    - 第一次启动会安装所有东西（先 `uv`，再依赖项），可能要几分钟。**那个窗口别关 —— 它就是服务器本体。**
 3. 浏览器会自动打开 **http://localhost:12393**。第一次运行会出现**设置向导**：**粘贴一个 API key**（OpenAI / Claude / Gemini / 智谱 / DeepSeek / Groq / Cerebras，或任何自定义 OpenAI 兼容接口），**或者选一个本地 Ollama 模型** —— 向导甚至可以帮你下载推荐的模型。保存前会先做一次快速测试调用。
 
-   ![Hana-Companion 首次启动设置向导](assets/hana-companion-setup.png)
+   ![Hana-Companion 首次启动设置向导](assets/setup-zh.png)
 
    *首次启动的设置向导，在这里接上你的 AI「大脑」。*
 

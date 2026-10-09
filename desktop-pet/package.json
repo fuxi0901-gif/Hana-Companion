@@ -1,0 +1,15 @@
+{
+  "name": "hana-desktop-pet",
+  "productName": "Hana Desktop Pet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Transparent always-on-top Live2D desktop pet for Hana-Companion (reuses the existing /client-ws backend).",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --server=http://127.0.0.1:12393"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

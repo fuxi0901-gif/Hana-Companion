@@ -47,7 +47,7 @@
 
 ## 스크린샷
 
-![Hana-Companion — 실제로 작동하는 당신의 Live2D AI 컴패니언](assets/hana-companion-hero.png)
+![Hana-Companion — 실제로 작동하는 당신의 Live2D AI 컴패니언](assets/hero-ko.png)
 
 *데스크톱에서 실행 중인 Hana-Companion: 진짜로 대화하게 되는 Live2D 아바타.*
 
@@ -71,7 +71,7 @@
    - 첫 실행 때 모든 것을 설치하며(`uv` 다음에 의존성), 몇 분 걸릴 수 있습니다. **그 창은 닫지 마세요 — 그게 바로 서버입니다.**
 3. 브라우저가 **http://localhost:12393**으로 열립니다. 첫 실행 시 **설정 마법사**가 나타납니다: **API 키 붙여넣기**(OpenAI / Claude / Gemini / Zhipu / DeepSeek / Groq / Cerebras, 또는 모든 OpenAI 호환 엔드포인트) **또는** **로컬 Ollama 모델 선택** 중 하나를 합니다 — 마법사는 추천 모델 내려받기까지 대신 해 줍니다. 저장하기 전에 빠른 테스트 호출을 실행합니다.
 
-   ![Hana-Companion 첫 실행 설정 마법사](assets/hana-companion-setup.png)
+   ![Hana-Companion 첫 실행 설정 마법사](assets/setup-ko.png)
 
    *첫 실행 설정 마법사, 여기서 당신의 AI "두뇌"를 연결합니다.*
 

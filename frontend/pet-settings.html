@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>桌宠设置</title>
+<style>
+  :root {
+    --bg: #17151a;
+    --card: #211e26;
+    --line: #322d38;
+    --fg: #ece7f1;
+    --muted: #a89fb4;
+    --accent: #ff8fb8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 14px 16px 18px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    user-select: none;
+  }
+  h1 { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--muted); }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line);
+  }
+  .row:last-child { border-bottom: 0; }
+  .field { display: block; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .field > span { display: block; margin-bottom: 5px; color: var(--muted); }
+  select, input[type="range"] { width: 100%; }
+  select {
+    background: var(--card); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 8px; font: inherit;
+  }
+  select:disabled { opacity: .45; }
+  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+  .note {
+    margin: 8px 0 2px; padding: 8px 10px; border-radius: 8px;
+    background: var(--card); color: var(--muted); font-size: 12px;
+  }
+  .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  button {
+    background: var(--card); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 14px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  .val { color: var(--accent); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <h1>桌宠设置</h1>
+
+  <label class="row"><span>显示桌宠窗口</span><input type="checkbox" id="visible" /></label>
+  <label class="row"><span>启动项目时自动显示</span><input type="checkbox" id="autoShow" /></label>
+  <label class="row"><span>始终置顶</span><input type="checkbox" id="alwaysOnTop" /></label>
+  <label class="row"><span>鼠标穿透<span id="penalty"></span></span><input type="checkbox" id="clickThrough" /></label>
+
+  <label class="field">
+    <span>大小 <b class="val" id="scaleVal">85%</b></span>
+    <input type="range" id="scale" min="0.4" max="2.5" step="0.05" />
+  </label>
+
+  <label class="row"><span>跟随网页当前角色</span><input type="checkbox" id="followWeb" /></label>
+  <div class="note" id="followNote">…</div>
+
+  <label class="field"><span>桌宠角色</span><select id="character"></select></label>
+  <label class="field"><span>桌宠形象（Live2D）</span><select id="model"></select></label>
+
+  <div class="actions">
+    <button id="openWeb" type="button">打开网页版</button>
+    <button id="close" type="button">关闭</button>
+  </div>
+
+<script>
+/* 桌宠设置窗口：与网页设定面板共用同一套 localhost 接口，写进
+   desktop-pet/settings.json，主进程按 mtime 轮询在 1.2 秒内应用。 */
+const $ = (s) => document.querySelector(s);
+const el = {
+  visible: $("#visible"), autoShow: $("#autoShow"), onTop: $("#alwaysOnTop"),
+  clickThrough: $("#clickThrough"), scale: $("#scale"), scaleVal: $("#scaleVal"),
+  follow: $("#followWeb"), followNote: $("#followNote"),
+  character: $("#character"), model: $("#model"), penalty: $("#penalty"),
+};
+
+let settings = null, syncing = false;
+
+async function getJSON(url) {
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(String(r.status));
+  return r.json();
+}
+
+async function patch(body) {
+  await fetch("/api/pet/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  refresh();
+}
+
+function fillSelect(sel, items, current) {
+  sel.innerHTML = "";
+  for (const it of items) {
+    const o = document.createElement("option");
+    o.value = it.value;
+    o.textContent = it.label;
+    sel.appendChild(o);
+  }
+  sel.value = items.some((i) => i.value === current) ? current : items[0].value;
+}
+
+/* 列表只在初次与跟随切换时刷新，避免每次轮询重建 select 打断用户操作。 */
+async function refreshLists() {
+  if (!settings) return;
+  const charItems = [{ value: "conf.yaml", label: "默认（跟随 conf.yaml）" }];
+  try {
+    const j = await getJSON("/api/characters");
+    for (const c of j.characters || []) {
+      if (!c.filename || c.filename === "conf.yaml") continue;
+      charItems.push({
+        value: c.filename,
+        label: c.conf_name || c.character_name || c.slug || c.filename,
+      });
+    }
+  } catch { /* 后端未就绪 */ }
+
+  const modelItems = [{ value: "", label: "跟随角色" }];
+  try {
+    const j = await getJSON("/api/pet/skins");
+    for (const m of j.skins || []) if (m.name) modelItems.push({ value: m.name, label: m.name });
+  } catch { /* 只留跟随角色 */ }
+
+  const following = settings && settings.followWeb !== false;
+  syncing = true;
+  fillSelect(el.character, charItems, settings.character || "conf.yaml");
+  fillSelect(el.model, modelItems, following ? "" : settings.model || "");
+  el.character.disabled = following;
+  el.model.disabled = following;
+  syncing = false;
+}
+
+function paint(state) {
+  settings = state.settings || {};
+  const following = settings.followWeb !== false;
+  const s = settings.scale ?? 0.85;
+
+  syncing = true;
+  el.visible.checked = settings.visible !== false;
+  el.autoShow.checked = settings.autoShow !== false;
+  el.onTop.checked = settings.alwaysOnTop !== false;
+  el.clickThrough.checked = !!settings.clickThrough;
+  el.follow.checked = following;
+  el.scaleVal.textContent = Math.round(s * 100) + "%";
+  if (document.activeElement !== el.scale) el.scale.value = String(s);
+  el.penalty.textContent = settings.clickThrough ? "（已开启：右键点不到桌宠，用托盘菜单恢复）" : "";
+  syncing = false;
+
+  el.character.disabled = following;
+  el.model.disabled = following;
+}
+
+async function refresh() {
+  try {
+    const j = await getJSON("/api/pet");
+    paint(j);
+    const w = await getJSON("/api/pet/web-character").catch(() => null);
+    const following = settings && settings.followWeb !== false;
+    el.followNote.hidden = false;
+    if (following && w && w.web && w.web.filename) {
+      el.followNote.textContent =
+        `正在跟随网页当前角色：${w.web.conf_name || w.web.filename}` +
+        `（形象 ${w.web.live2d_model_name || "—"}，性格与记忆共用同一份角色配置）`;
+    } else if (following) {
+      el.followNote.textContent = "等待网页端连接：桌宠暂用下方手动选择的角色。";
+    } else {
+      el.followNote.textContent = "已固定为手动选择的角色；开启上方开关即可跟随网页。";
+    }
+    if (w && following && w.web && w.web.filename) {
+      const opt = [...el.character.options].find((o) => o.value === w.web.filename);
+      if (opt) { syncing = true; el.character.value = w.web.filename; syncing = false; }
+    }
+  } catch {
+    el.followNote.textContent = "无法连接后端，设置不可用。";
+  }
+}
+
+const boxes = [
+  [el.visible, (v) => ({ visible: v })],
+  [el.autoShow, (v) => ({ autoShow: v })],
+  [el.onTop, (v) => ({ alwaysOnTop: v })],
+  [el.clickThrough, (v) => ({ clickThrough: v })],
+];
+for (const [input, body] of boxes) {
+  input.addEventListener("change", () => {
+    if (!syncing) patch(body(input.checked));
+  });
+}
+
+el.follow.addEventListener("change", () => {
+  if (syncing) return;
+  const body = { followWeb: el.follow.checked };
+  if (el.follow.checked) body.model = "";
+  else if (el.character.value) body.character = el.character.value;
+  patch(body).then(refreshLists);
+});
+el.character.addEventListener("change", () => {
+  if (!syncing) patch({ character: el.character.value, followWeb: false });
+});
+el.model.addEventListener("change", () => {
+  if (!syncing) patch({ model: el.model.value });
+});
+el.scale.addEventListener("input", () => {
+  el.scaleVal.textContent = Math.round(Number(el.scale.value) * 100) + "%";
+});
+el.scale.addEventListener("change", () => {
+  if (!syncing) patch({ scale: Number(el.scale.value) });
+});
+
+$("#openWeb").addEventListener("click", () => {
+  window.open("/", "_blank");
+});
+$("#close").addEventListener("click", () => window.close());
+
+window.addEventListener("focus", refresh);
+refresh().then(refreshLists);
+setInterval(refresh, 1500);
+</script>
+</body>
+</html>

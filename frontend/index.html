@@ -320,6 +320,43 @@
           </details>
 
           <details class="setting">
+            <summary>桌宠</summary>
+            <div class="setting__note" id="petNote">…</div>
+            <label class="setting__row">
+              <span>显示桌宠窗口</span>
+              <span class="switch"><input type="checkbox" id="petVisible" /><i></i></span>
+            </label>
+            <label class="setting__row">
+              <span>启动项目时自动显示</span>
+              <span class="switch"><input type="checkbox" id="petAutoShow" /><i></i></span>
+            </label>
+            <label class="setting__row">
+              <span>始终置顶</span>
+              <span class="switch"><input type="checkbox" id="petOnTop" /><i></i></span>
+            </label>
+            <label class="setting__row">
+              <span>跟随网页当前角色</span>
+              <span class="switch"><input type="checkbox" id="petFollow" /><i></i></span>
+            </label>
+            <div class="setting__note" id="petFollowNote" hidden></div>
+            <label class="field">
+              <span>桌宠角色</span>
+              <select id="petCharacter" class="input"></select>
+            </label>
+            <label class="field">
+              <span>桌宠形象（Live2D）</span>
+              <select id="petModel" class="input"></select>
+            </label>
+            <label class="field">
+              <span>桌宠大小 <b id="petScaleVal">85%</b></span>
+              <input type="range" id="petScale" min="0.4" max="2.5" step="0.05" value="0.85" />
+            </label>
+            <div class="setting__actions">
+              <button class="btn btn--ghost" id="btnPetQuit">退出桌宠进程</button>
+            </div>
+          </details>
+
+          <details class="setting">
             <summary data-i18n="settings.group">群组对谈</summary>
             <div class="setting__note" id="groupNote"></div>
             <ul class="group-list" id="groupList"></ul>
@@ -453,5 +490,6 @@
     <script src="/libs/live2dcubismcore.min.js"></script>
     <script src="/libs/pixi-live2d-display-cubism4.min.js"></script>
     <script src="/app/app.js" type="module"></script>
+    <script src="/app/pet-panel.js" type="module"></script>
   </body>
 </html>
