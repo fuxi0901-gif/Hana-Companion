@@ -66,6 +66,10 @@
   <label class="row"><span>跟随网页当前角色</span><input type="checkbox" id="followWeb" /></label>
   <div class="note" id="followNote">…</div>
 
+  <label class="row"><span>回复从嘴边说出（气泡）</span><input type="checkbox" id="bubbleMode" /></label>
+  <label class="row"><span>语音回复（关闭则只出文字）</span><input type="checkbox" id="voiceReply" /></label>
+  <label class="row"><span>与网页共用同一段对话</span><input type="checkbox" id="shareHistory" /></label>
+
   <label class="field"><span>桌宠角色</span><select id="character"></select></label>
   <label class="field"><span>桌宠形象（Live2D）</span><select id="model"></select></label>
 
@@ -82,6 +86,7 @@ const el = {
   visible: $("#visible"), autoShow: $("#autoShow"), onTop: $("#alwaysOnTop"),
   clickThrough: $("#clickThrough"), scale: $("#scale"), scaleVal: $("#scaleVal"),
   follow: $("#followWeb"), followNote: $("#followNote"),
+  share: $("#shareHistory"), bubble: $("#bubbleMode"), voice: $("#voiceReply"),
   character: $("#character"), model: $("#model"), penalty: $("#penalty"),
 };
 
@@ -155,6 +160,9 @@ function paint(state) {
   el.onTop.checked = settings.alwaysOnTop !== false;
   el.clickThrough.checked = !!settings.clickThrough;
   el.follow.checked = following;
+  el.share.checked = settings.shareHistory !== false;
+  el.bubble.checked = settings.bubbleMode !== false;
+  el.voice.checked = settings.voiceReply !== false;
   el.scaleVal.textContent = Math.round(s * 100) + "%";
   if (document.activeElement !== el.scale) el.scale.value = String(s);
   el.penalty.textContent = settings.clickThrough ? "（已开启：右键点不到桌宠，用托盘菜单恢复）" : "";
@@ -194,6 +202,9 @@ const boxes = [
   [el.autoShow, (v) => ({ autoShow: v })],
   [el.onTop, (v) => ({ alwaysOnTop: v })],
   [el.clickThrough, (v) => ({ clickThrough: v })],
+  [el.share, (v) => ({ shareHistory: v })],
+  [el.bubble, (v) => ({ bubbleMode: v })],
+  [el.voice, (v) => ({ voiceReply: v })],
 ];
 for (const [input, body] of boxes) {
   input.addEventListener("change", () => {

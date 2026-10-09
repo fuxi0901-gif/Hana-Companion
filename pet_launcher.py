@@ -34,6 +34,7 @@ from loguru import logger
 # REUSE the localhost+proxy guard every other local-only router uses.
 from src.open_llm_vtuber.llm_config_route import _is_local_request, _forbidden
 from src.open_llm_vtuber.config_manager.utils import read_yaml
+from src.open_llm_vtuber.chat_history_manager import get_history
 
 # --------------------------------------------------------------------------- #
 # Constants
@@ -58,6 +59,24 @@ DEFAULTS: dict = {
     "alwaysOnTop": True,
     "clickThrough": False,
     "quitRequested": False,  # cross-process stop, see terminate_pet()
+    # Whether the persistent chat log is shown over the pet. The ✕ on the panel,
+    # the right-click menu and the settings pages all flip this; the pet mirrors
+    # it locally and persists it so a restart keeps the choice.
+    "chatVisible": True,
+    # Reply presentation: bubbleMode shows the current answer in a speech bubble
+    # anchored at the Live2D mouth (off = the log box at the top only). voiceReply
+    # gates TTS playback: false keeps the text but stays silent. Both are flipped
+    # from the pet's right-click menu and the settings page.
+    "bubbleMode": True,
+    "voiceReply": True,
+    # Conversation merge (see frontend/pet.html + app.js): the pet and the web
+    # client can share ONE chat_history session so each side's messages show up
+    # for the other. history_uid is chosen by whichever client starts first and
+    # published here; sharedConfUid guards against resuming it under a different
+    # character. shareHistory=false falls back to the old per-client behaviour.
+    "sharedHistoryUid": "",
+    "sharedConfUid": "",
+    "shareHistory": True,
 }
 
 # Whitelist + type check so a POST body can never smuggle an arbitrary key.
@@ -68,6 +87,10 @@ _SCALARS = {
     "alwaysOnTop": bool,
     "clickThrough": bool,
     "quitRequested": bool,
+    "chatVisible": bool,
+    "bubbleMode": bool,
+    "voiceReply": bool,
+    "shareHistory": bool,
     "model": str,
     "petUid": str,
 }
@@ -136,6 +159,9 @@ def _is_valid_value(key: str, value) -> bool:
     if key == "model":
         return isinstance(value, str) and (value == "" or bool(_MODEL_NAME_RE.match(value)))
     if key == "petUid":
+        return isinstance(value, str) and (value == "" or bool(_UID_RE.match(value)))
+    if key in ("sharedHistoryUid", "sharedConfUid"):
+        # history_uid / conf_uid are both bare ids, never a path.
         return isinstance(value, str) and (value == "" or bool(_UID_RE.match(value)))
     if key in _SCALARS:
         return isinstance(value, _SCALARS[key])
@@ -505,6 +531,43 @@ def init_pet_route(port: int, get_contexts=None) -> APIRouter:
         if blocked:
             return blocked
         return JSONResponse(list_skins())
+
+    @router.get("/api/pet/history")
+    async def pet_history(request: Request, conf_uid: str = "", history_uid: str = ""):
+        """Read-only view of one persisted conversation, for live pet<->web sync.
+
+        A single conversation is sent only to the client that spoke (the fork does
+        not broadcast one client's turn to another), so each side polls this to
+        mirror the shared chat_history file. Both ids are bare ids, never a path.
+        """
+        blocked = guard(request)
+        if blocked:
+            return blocked
+        if not _is_valid_value("sharedConfUid", conf_uid) or not _is_valid_value(
+            "sharedHistoryUid", history_uid
+        ):
+            return JSONResponse(status_code=400, content={"ok": False, "error": "bad id"})
+        messages = [
+            {
+                "role": m.get("role"),
+                "content": m.get("content", ""),
+                "name": m.get("name"),
+                "timestamp": m.get("timestamp", ""),
+            }
+            for m in get_history(conf_uid, history_uid)
+            if m.get("role") in ("human", "ai", "system")
+        ]
+        return JSONResponse(
+            {
+                "ok": True,
+                "count": len(messages),
+                # Cheap change key for the pollers: count + last-timestamp stays
+                # identical between turns, so an unchanged conversation never
+                # triggers a re-render on every poll.
+                "sig": f"{len(messages)}:{messages[-1]['timestamp'] if messages else ''}",
+                "messages": messages,
+            }
+        )
 
     @router.post("/api/pet/show")
     async def pet_show(request: Request):

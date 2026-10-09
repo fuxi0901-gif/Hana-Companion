@@ -24,6 +24,15 @@ try:
 except Exception as _e:  # pragma: no cover - defensive
     _PET_IMPORT_ERROR = f"{type(_e).__name__}: {_e}"
 
+# Also additive: the intermittent "回答中断" is a concurrent-write race inside
+# websockets' legacy drain helper (several tasks send on one connection). The
+# guard serializes those writes; see ws_send_guard.py.
+try:
+    import ws_send_guard
+except Exception as _e:  # pragma: no cover - defensive
+    ws_send_guard = None
+    _SEND_GUARD_ERROR = f"{type(_e).__name__}: {_e}"
+
 os.environ["HF_HOME"] = str(Path(__file__).parent / "models")
 os.environ["MODELSCOPE_CACHE"] = str(Path(__file__).parent / "models")
 
@@ -111,6 +120,11 @@ def _open_browser_when_ready(host: str, port: int, timeout: float = 600.0) -> No
 def run(console_log_level: str, open_browser: bool = False, launch_pet: bool = True):
     init_logger(console_log_level)
     logger.info(f"Hana-Companion, version v{get_version()}")
+
+    if ws_send_guard is not None:
+        ws_send_guard.install()
+    else:
+        logger.warning(f"WebSocket send guard unavailable ({_SEND_GUARD_ERROR})")
 
     atexit.register(WebSocketServer.clean_cache)
 

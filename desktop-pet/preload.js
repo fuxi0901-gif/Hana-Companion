@@ -11,4 +11,10 @@ contextBridge.exposeInMainWorld("hanaPet", {
     ipcRenderer.on("pet:switch-config", (_e, filename) => cb(filename)),
   onSwitchModel: (cb) =>
     ipcRenderer.on("pet:switch-model", (_e, name) => cb(name)),
+  onChatVisible: (cb) =>
+    ipcRenderer.on("pet:chat-visible", (_e, visible) => cb(visible)),
+  onBubbleMode: (cb) =>
+    ipcRenderer.on("pet:bubble-mode", (_e, enabled) => cb(enabled)),
+  onVoiceReply: (cb) =>
+    ipcRenderer.on("pet:voice-reply", (_e, enabled) => cb(enabled)),
 });

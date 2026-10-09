@@ -14,6 +14,7 @@ const el = {
   onTop: $("#petOnTop"),
   follow: $("#petFollow"),
   followNote: $("#petFollowNote"),
+  share: $("#petShare"),
   character: $("#petCharacter"),
   model: $("#petModel"),
   scale: $("#petScale"),
@@ -65,6 +66,7 @@ function paint(state) {
   el.autoShow.checked = settings.autoShow !== false;
   el.onTop.checked = settings.alwaysOnTop !== false;
   if (el.follow) el.follow.checked = settings.followWeb !== false;
+  if (el.share) el.share.checked = settings.shareHistory !== false;
   el.scale.value = String(settings.scale ?? 0.85);
   el.scaleVal.textContent = Math.round((settings.scale ?? 0.85) * 100) + "%";
   el.quit.disabled = !running;
@@ -196,6 +198,15 @@ if (el.follow) {
     // keep drawing the old face.
     if (el.follow.checked) body.model = "";
     patch(body).then(refreshLists);
+  });
+}
+if (el.share) {
+  el.share.addEventListener("change", () => {
+    if (syncing) return;
+    // Off keeps each client on its own session (records still persist); on merges
+    // the web and pet into one timeline. The stored pointer is left as-is so
+    // re-enabling resumes the same conversation.
+    patch({ shareHistory: el.share.checked });
   });
 }
 el.character.addEventListener("change", () => {

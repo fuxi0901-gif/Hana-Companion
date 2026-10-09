@@ -87,7 +87,13 @@ const SETTINGS_DEFAULTS = {
   scale: 0.85,
   alwaysOnTop: true,
   clickThrough: false,
+  chatVisible: true,
+  bubbleMode: true,
+  voiceReply: true,
   quitRequested: false,
+  sharedHistoryUid: "",
+  sharedConfUid: "",
+  shareHistory: true,
 };
 
 let settingsCache = null;
@@ -103,9 +109,15 @@ function sanitizeSettings(s) {
   out.followWeb = out.followWeb !== false;
   out.alwaysOnTop = out.alwaysOnTop !== false;
   out.clickThrough = out.clickThrough === true;
+  out.chatVisible = out.chatVisible !== false;
+  out.bubbleMode = out.bubbleMode !== false;
+  out.voiceReply = out.voiceReply !== false;
+  out.shareHistory = out.shareHistory !== false;
   if (typeof out.character !== "string" || !out.character) out.character = "conf.yaml";
   if (typeof out.model !== "string") out.model = "";
   if (typeof out.petUid !== "string") out.petUid = "";
+  if (typeof out.sharedHistoryUid !== "string") out.sharedHistoryUid = "";
+  if (typeof out.sharedConfUid !== "string") out.sharedConfUid = "";
   return out;
 }
 
@@ -157,6 +169,15 @@ function applySettings(next) {
   if (next.visible !== prev.visible) {
     if (next.visible) showPetWindow();
     else win.hide();
+  }
+  if (next.chatVisible !== prev.chatVisible) {
+    win.webContents.send("pet:chat-visible", next.chatVisible);
+  }
+  if (next.bubbleMode !== prev.bubbleMode) {
+    win.webContents.send("pet:bubble-mode", next.bubbleMode);
+  }
+  if (next.voiceReply !== prev.voiceReply) {
+    win.webContents.send("pet:voice-reply", next.voiceReply);
   }
   if (next.character !== prev.character) {
     // While following the web page the renderer owns the character and mirrors
@@ -365,6 +386,9 @@ function createWindow() {
     const s = readSettings();
     appliedSettings = { ...s };
     applyClickThrough(s.clickThrough);
+    win.webContents.send("pet:chat-visible", s.chatVisible);
+    win.webContents.send("pet:bubble-mode", s.bubbleMode);
+    win.webContents.send("pet:voice-reply", s.voiceReply);
     // Hand the renderer the current selections; it queues them until the
     // WebSocket is open, so a restart lands on the same pet as before.
     // The base config is what the server already loaded, so skip the switch.
@@ -532,6 +556,41 @@ async function showContextMenu() {
 
   const template = [
     { label: "设置…", click: () => openSettingsWindow() },
+    { type: "separator" },
+    {
+      label: "显示对话框",
+      type: "checkbox",
+      checked: cfg.chatVisible,
+      click: (item) => {
+        writeSettings({ chatVisible: item.checked });
+        // Apply now instead of waiting for the next 1.2s settings poll.
+        if (win && !win.isDestroyed()) win.webContents.send("pet:chat-visible", item.checked);
+      },
+    },
+    {
+      label: "从嘴边说出（气泡）",
+      type: "checkbox",
+      checked: cfg.bubbleMode,
+      click: (item) => {
+        writeSettings({ bubbleMode: item.checked });
+        if (win && !win.isDestroyed()) win.webContents.send("pet:bubble-mode", item.checked);
+      },
+    },
+    {
+      label: "语音回复",
+      type: "checkbox",
+      checked: cfg.voiceReply,
+      click: (item) => {
+        writeSettings({ voiceReply: item.checked });
+        if (win && !win.isDestroyed()) win.webContents.send("pet:voice-reply", item.checked);
+      },
+    },
+    {
+      label: "与网页共用同一段对话",
+      type: "checkbox",
+      checked: cfg.shareHistory,
+      click: (item) => writeSettings({ shareHistory: item.checked }),
+    },
     { type: "separator" },
     {
       label: "始终置顶",

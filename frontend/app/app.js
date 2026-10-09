@@ -462,6 +462,10 @@ const state = {
   voices: [],
   historyUid: null,
   histories: [],
+  // Merged desktop-pet conversation (see frontend/pet.html + /api/pet). When
+  // shareHistory is on, this page joins the same chat_history session the pet
+  // uses instead of creating its own, so both sides see one timeline.
+  petShare: { loaded: false, on: false, uid: "", confUid: "" },
   groupMembers: [],
   isGroupOwner: false,
   muted: store.get("mute", false),
@@ -569,6 +573,7 @@ function routeMessage(msg) {
       break;
     case "user-input-transcription":
       removeThinking();
+      noteLocal("me", msg.text || "");
       addMsg("me", msg.text || "…", { voice: true });
       break;
     case "audio":
@@ -592,6 +597,7 @@ function routeMessage(msg) {
     case "new-history-created":
       state.historyUid = msg.history_uid;
       historyCreating = false;
+      publishSharedHistory();
       break;
     case "history-deleted":
       if (msg.history_uid === state.historyUid) {
@@ -607,11 +613,14 @@ function routeMessage(msg) {
       toast(t("char.switched", { name: state.confName }));
       break;
     case "backend-synth-complete":
+      backendSynthDone = true;
+      maybePlaybackComplete();
       break;
     case "heartbeat-ack":
       break;
     case "error":
       removeThinking();
+      endAiTurn();
       setStatus("status.online");
       stageStatus(msg.message || "Error");
       toast(msg.message || "Error", true);
@@ -633,6 +642,7 @@ function onSetModelConfCore(msg) {
   if (confChanged) state.historyUid = null;
   if (first || confChanged) {
     clearChat();
+    resetMirror(); // a new character is a new conversation namespace
     addSysMsg(t("welcome", { name: state.confName }));
   }
   loadLive2DModel(msg.model_info);
@@ -645,6 +655,7 @@ function onSetModelConfCore(msg) {
   renderCurrentCharCard();
   renderConnInfo();
   wsSend({ type: "fetch-history-list" });
+  refreshPetShare();
 }
 
 function onSetModelAndConf(msg) {
@@ -669,12 +680,16 @@ function onControl(text) {
   switch (text) {
     case "conversation-chain-start":
       state.heardText = "";
+      backendSynthDone = false;
+      endAiTurn();
       showThinking();
       setStatus("status.thinking", "busy");
       break;
     case "conversation-chain-end":
       removeThinking();
+      endAiTurn();
       if (!state.speaking) setStatus("status.online");
+      maybePlaybackComplete();
       break;
     case "interrupt":
       stopAllAudio();
@@ -854,7 +869,55 @@ function base64ToArrayBuffer(b64) {
   return bytes.buffer;
 }
 
+/* The backend holds the conversation open until it gets frontend-playback-complete
+   back; that ack is what makes it write the AI message to chat_history. Without it
+   the turn never finishes (the pet sends it, the web used not to). */
+let backendSynthDone = false;
+
+function maybePlaybackComplete() {
+  if (backendSynthDone && !state.speaking && audioQueue.length === 0) {
+    backendSynthDone = false;
+    noteLocalTurnEnd(); // the reply below is already on screen; do not mirror it twice
+    noteLocal("ai", state.heardText);
+    wsSend({ type: "frontend-playback-complete" });
+  }
+}
+
+/* One AI bubble per turn: the streamed sentences are appended into it, which is
+   also how chat_history stores the reply, so the shared-conversation mirror can
+   tell "already on screen" from "new". */
+let curAiBubble = null;
+let curAiText = "";
+
+function appendAiTurn(text, opts) {
+  if (!curAiBubble || !curAiBubble.isConnected) {
+    curAiBubble = addMsg("ai", text, opts).querySelector(".msg__bubble");
+    curAiText = text;
+  } else {
+    curAiText += text;
+    curAiBubble.textContent = curAiText;
+  }
+  const list = $("#chatList");
+  list.scrollTop = list.scrollHeight;
+}
+
+function endAiTurn() {
+  curAiBubble = null;
+  curAiText = "";
+}
+
 function enqueueAudio(payload) {
+  // Show the reply text as soon as the payload arrives. Rendering it at dequeue
+  // made the chat crawl at speaking pace instead of at generation pace. One merged
+  // bubble per turn, so the on-screen text lines up with the chat_history record.
+  const display = payload.display_text || {};
+  const text = display.text || "";
+  if (text) {
+    removeThinking();
+    state.heardText += (state.heardText ? " " : "") + text;
+    noteLocal("ai", text);
+    appendAiTurn(text, { name: display.name, avatar: display.avatar });
+  }
   audioQueue.push(payload);
   if (!state.speaking) playNextAudio();
 }
@@ -866,6 +929,7 @@ function playNextAudio() {
     updateInterruptBtn();
     if (state.connected) setStatus("status.online");
     hideSubtitle();
+    maybePlaybackComplete();
     return;
   }
   state.speaking = true;
@@ -873,15 +937,9 @@ function playNextAudio() {
   removeThinking();
   setStatus("status.speaking", "busy");
 
-  const display = p.display_text || {};
-  const text = display.text || "";
-  if (text) {
-    state.heardText += (state.heardText ? " " : "") + text;
-    addMsg("ai", text, { name: display.name, avatar: display.avatar });
-  }
   applyActions(p.actions);
 
-  const subtitleText = p.subtitle_text || text;
+  const subtitleText = p.subtitle_text || (p.display_text && p.display_text.text) || "";
   const canPlay = p.audio && !state.muted;
   if (canPlay) {
     wsSend({ type: "audio-play-start", display_text: p.display_text });
@@ -930,11 +988,19 @@ async function playAudioPayload(p, subtitleText) {
     };
     playRaf = requestAnimationFrame(tick);
 
-    src.onended = () => {
+    /* onended never fires while the context is suspended (no user gesture yet), and
+       the queue then stalls: speaking stays true, the playback ack is withheld and
+       the whole turn hangs. A watchdog on the known buffer length keeps it moving. */
+    const finish = () => {
       if (playEndResolve !== resolve) return;
       cleanupPlayback();
+      try { src.stop(); } catch { /* already stopped */ }
       resolve();
     };
+    const paceMs = audioBuffer.duration * 1000;
+    const watchdog = setTimeout(finish, ctx.state === "running" ? paceMs + 2000 : Math.min(paceMs, 1200) + 400);
+    src.onended = () => { clearTimeout(watchdog); finish(); };
+
     src.start();
   });
 }
@@ -1080,6 +1146,7 @@ function removeThinking() {
 function clearChat() {
   $("#chatList").innerHTML = "";
   thinkingEl = null;
+  endAiTurn();
   removeThinking();
 }
 
@@ -1091,13 +1158,227 @@ function autoGrow() {
 }
 
 let historyCreating = false;
-function ensureHistory() {
-  if (!state.historyUid && !historyCreating) {
-    historyCreating = true;
-    wsSend({ type: "create-new-history" });
-    setTimeout(() => (historyCreating = false), 3000);
+
+/* ---- Merged conversation with the desktop pet (opt-in via /api/pet settings) ----
+ * Both the web client and the pet can operate on ONE chat_history session so each
+ * side sees the other's messages and the shared LLM memory is not reset every turn.
+ * The shared pointer lives in desktop-pet/settings.json (localhost-only /api/pet).
+ * If those endpoints are absent (pet not installed) or shareHistory is off, this
+ * whole path short-circuits and the web behaves exactly as before. */
+async function refreshPetShare() {
+  try {
+    const res = await fetch("/api/pet", { cache: "no-store" });
+    if (!res.ok) return;
+    const s = (await res.json()).settings || {};
+    state.petShare = {
+      loaded: true,
+      on: s.shareHistory !== false,
+      uid: s.sharedHistoryUid || "",
+      confUid: s.sharedConfUid || "",
+    };
+  } catch {
+    /* pet endpoints unavailable — keep defaults (falls back to per-session history) */
   }
 }
+
+/* Only a pointer whose owner character has no live client may be taken over.
+   Two clients on two different characters re-publishing over each other made both
+   sides reload the ONE agent memory object they share every few seconds — the pet's
+   lag and stalled turns came from that. */
+async function characterIsLive(confUid) {
+  try {
+    const res = await fetch("/api/pet/web-character", { cache: "no-store" });
+    if (!res.ok) return true; // unknown: leave the pointer alone
+    const d = await res.json();
+    return (d.clients || []).some((c) => c.conf_uid === confUid);
+  } catch {
+    return true;
+  }
+}
+
+function writeSharedPointer() {
+  fetch("/api/pet/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sharedHistoryUid: state.historyUid, sharedConfUid: state.confUid }),
+    cache: "no-store",
+  })
+    .then(() => {
+      state.petShare.uid = state.historyUid;
+      state.petShare.confUid = state.confUid;
+    })
+    .catch(() => {});
+}
+
+function publishSharedHistory() {
+  if (!state.petShare || !state.petShare.on || !state.historyUid || !state.confUid) return;
+  if (state.petShare.uid && state.petShare.confUid === state.confUid) { writeSharedPointer(); return; }
+  if (state.petShare.uid && state.petShare.confUid !== state.confUid) {
+    characterIsLive(state.petShare.confUid).then((live) => { if (!live) writeSharedPointer(); });
+    return;
+  }
+  writeSharedPointer(); // nobody owns the pointer yet
+}
+
+function ensureHistory() {
+  if (state.historyUid || historyCreating) return;
+  historyCreating = true;
+  // Reuse the shared conversation when the pet (or a previous session) already
+  // started one for this exact character; resume it instead of creating a new one.
+  if (state.petShare && state.petShare.on && state.petShare.uid && state.petShare.confUid === state.confUid) {
+    wsSend({ type: "fetch-and-set-history", history_uid: state.petShare.uid });
+    state.historyUid = state.petShare.uid;
+    setTimeout(() => (historyCreating = false), 1000);
+    return;
+  }
+  wsSend({ type: "create-new-history" });
+  setTimeout(() => (historyCreating = false), 3000);
+}
+
+/* ---- Real-time display sync (web side) ----
+ * A single conversation is streamed only to the client that spoke, so the web
+ * never sees the pet's turn over the socket. When merge is on we mirror the
+ * shared chat_history file: poll it while idle and show what is new. Fully
+ * opt-in — with shareHistory off, or the pet endpoints missing, this is inert and
+ * the web behaves exactly as before.
+ *
+ * Append-only on purpose. Rebuilding from the file used to wipe the chat: the file
+ * trails the screen (a turn is written when playback is acked), so a rebuild right
+ * after a reply erased that reply. Only a conversation switch or a shortened file
+ * may rebuild. */
+let petMirrorSig = "";
+let petMirrorUid = "";
+let petMirrorCount = 0;
+
+function chatNearBottom() {
+  const box = $("#chatList");
+  return !box || box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+}
+
+const normText = (s) => String(s == null ? "" : s).replace(/\s+/g, "");
+
+/* Text this client already rendered, so the mirrored file does not show the same
+   turn twice. chat_history keeps the raw whole reply while the live UI shows the
+   TTS-cleaned text sentence by sentence, so the structural tail match below is the
+   primary guard and these keys only catch exact repeats. */
+const localSeen = new Set();
+let pendingLocalTail = 0;
+
+function noteLocal(role, text) {
+  const t = normText(text);
+  if (!t) return;
+  if (localSeen.size > 300) localSeen.clear();
+  localSeen.add(role + "|" + t);
+}
+
+// Called when this client's turn is over: the file grew by its own (human, ai) pair.
+function noteLocalTurnEnd() {
+  pendingLocalTail = 2;
+}
+
+function resetMirror() {
+  petMirrorSig = "";
+  petMirrorUid = "";
+  petMirrorCount = 0;
+  pendingLocalTail = 0;
+  localSeen.clear();
+}
+
+function appendMirrorMessage(m) {
+  const role = m.role === "human" ? "me" : m.role === "ai" ? "ai" : "sys";
+  const t = normText(m.content);
+  if ((role === "me" || role === "ai") && localSeen.has(role + "|" + t)) return;
+  if (role === "me") addMsg("me", m.content || "");
+  else if (role === "ai") addMsg("ai", m.content || "", { name: m.name });
+  else addSysMsg(m.content || "");
+  // Whatever is on screen counts as seen, so an overlapping poll cannot repeat it.
+  noteLocal(role, t);
+}
+
+// Is this file message already on screen? The bubble holds the TTS-cleaned text
+// while the record holds the raw reply, so either side containing the other counts.
+function domHasMessage(role, text) {
+  const t = normText(text);
+  if (!t) return false;
+  const cls = role === "me" ? ".msg--me" : ".msg--ai";
+  const rows = [...$("#chatList").querySelectorAll(".msg" + cls + " .msg__bubble")].slice(-8);
+  return rows.some((b) => {
+    const x = normText(b.textContent);
+    return x.length >= 4 && t.length >= 4 && (x.includes(t) || t.includes(x));
+  });
+}
+
+// How many trailing file messages belong to the turn this client just showed.
+function localTailCount(messages) {
+  if (pendingLocalTail <= 0) return 0;
+  const n = messages.length;
+  const last = messages[n - 1];
+  if (last.role !== "ai") {
+    // Only our question is written so far, and it is on screen: claim it so the
+    // reply does not get appended as a second question in the next poll.
+    if (pendingLocalTail >= 2 && last.role === "human" && domHasMessage("me", last.content)) {
+      pendingLocalTail = 1;
+    }
+    return 0;
+  }
+  if (!domHasMessage("ai", last.content)) {
+    pendingLocalTail = 0; // our reply never reached the screen: let it be appended
+    return 0;
+  }
+  if (pendingLocalTail >= 2 && n >= 2 && messages[n - 2].role === "human" &&
+      domHasMessage("me", messages[n - 2].content)) return 2;
+  return 1;
+}
+
+function syncSharedConversation(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return; // never blank a live chat
+  const stick = chatNearBottom();
+  const uid = state.petShare.uid;
+  // Only a conversation we already mirrored needs a rebuild. With nothing mirrored
+  // yet, adopt the new uid and let the append path reconcile against the screen.
+  if (petMirrorCount > 0 && (uid !== petMirrorUid || messages.length < petMirrorCount)) {
+    clearChat();
+    petMirrorCount = 0;
+    pendingLocalTail = 0;
+    localSeen.clear();
+  }
+  petMirrorUid = uid;
+  const skip = localTailCount(messages);
+  const end = messages.length - skip;
+  if (skip > 0) pendingLocalTail = 0;
+  if (end > petMirrorCount) {
+    for (const m of messages.slice(petMirrorCount, end)) appendMirrorMessage(m);
+  }
+  petMirrorCount = messages.length;
+  if (stick) {
+    const box = $("#chatList");
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+}
+
+async function pollPetMirror() {
+  if (!state.connected || !state.confUid) return;
+  if (state.speaking || state.thinking) return; // never rebuild under a live turn
+  await refreshPetShare();
+  const ps = state.petShare;
+  if (!ps.on || !ps.uid || ps.confUid !== state.confUid) return;
+  // Only mirror the conversation the user is actually looking at; a different
+  // open chat (from the history list) must not be hijacked.
+  if (state.historyUid && state.historyUid !== ps.uid) return;
+  try {
+    const q = `?conf_uid=${encodeURIComponent(state.confUid)}&history_uid=${encodeURIComponent(ps.uid)}`;
+    const res = await fetch("/api/pet/history" + q, { cache: "no-store" });
+    if (!res.ok) return;
+    const d = await res.json();
+    if (!d || d.sig === petMirrorSig) return;
+    petMirrorSig = d.sig;
+    syncSharedConversation(d.messages || []);
+  } catch {
+    /* pet endpoints unavailable */
+  }
+}
+setInterval(pollPetMirror, 2500);
+
 
 function sendText() {
   const ta = $("#chatText");
@@ -1107,6 +1388,7 @@ function sendText() {
   if (!state.connected) { toast(t("status.offline"), true); return; }
   ensureHistory();
   if (state.speaking) interruptConversation();
+  noteLocal("me", text);
   addMsg("me", text || "🖼️", { images: images.map((i) => i.url) });
   const payload = { type: "text-input", text };
   if (images.length) {
@@ -1863,6 +2145,8 @@ function renderHistoryList() {
     main.addEventListener("click", () => {
       wsSend({ type: "fetch-and-set-history", history_uid: h.uid });
       state.historyUid = h.uid;
+      resetMirror(); // the reply for this chat comes back as history-data
+      publishSharedHistory();
       renderHistoryList();
     });
     const del = document.createElement("button");
@@ -1880,14 +2164,31 @@ function renderHistoryList() {
 }
 
 function loadHistoryMessages(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  if (state.thinking || state.speaking) {
+    // A turn is already running on this connection (the first message right after
+    // switching character adopts the shared history). Rebuilding now would delete
+    // what the user just sent, so keep the live log and let the mirror catch up.
+    petMirrorSig = "";
+    petMirrorUid = state.historyUid || "";
+    petMirrorCount = 0;
+    pendingLocalTail = 0;
+    toast(t("history.loaded"));
+    return;
+  }
   clearChat();
-  for (const m of messages) {
+  for (const m of list) {
     if (m.role === "human") addMsg("me", m.content || "");
     else if (m.role === "ai") addMsg("ai", m.content || "", { name: m.name });
     else if (m.role === "system") addSysMsg(m.content || "");
   }
   addSysMsg(t("history.loaded"));
   toast(t("history.loaded"));
+  // What is on screen now IS the shared file, so the mirror must not re-append it.
+  petMirrorSig = "";
+  petMirrorUid = state.historyUid || "";
+  petMirrorCount = list.length;
+  pendingLocalTail = 0;
 }
 
 $("#btnNewChat").addEventListener("click", () => {
@@ -1895,6 +2196,7 @@ $("#btnNewChat").addEventListener("click", () => {
   removeThinking();
   clearChat();
   state.historyUid = null;
+  resetMirror();
   addSysMsg(t("welcome", { name: state.confName }));
   wsSend({ type: "create-new-history" });
   wsSend({ type: "fetch-history-list" });
